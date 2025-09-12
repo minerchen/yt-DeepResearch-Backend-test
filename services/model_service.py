@@ -23,9 +23,9 @@ class ModelService:
         return {
             "openai": AvailableModel(
                 id="openai",
-                name="OpenAI GPT-4",
+                name="OpenAI GPT-4o",
                 provider="OpenAI",
-                description="Advanced language model with excellent reasoning and research capabilities",
+                description="Advanced language model with excellent reasoning and research capabilities (128k tokens)",
                 capabilities=[
                     "web_search",
                     "document_analysis", 
@@ -114,9 +114,9 @@ class ModelService:
             Dictionary mapping model IDs to LangChain model names
         """
         return {
-            "openai": "openai:gpt-4",
+            "openai": "openai:gpt-4o",  # Using GPT-4o with 128k token limit instead of gpt-4 (8k limit)
             "anthropic": "anthropic:claude-3-5-sonnet-20241022", 
-            "kimi": "kimi:moonshot-v1-128k"  # Using Kimi's API model name
+            "kimi": "anthropic:claude-3-5-sonnet-20241022"  # Kimi K2 via Anthropic API format (uses Claude model name)
         }
     
     def get_api_key_env_var(self, model_id: str) -> Optional[str]:

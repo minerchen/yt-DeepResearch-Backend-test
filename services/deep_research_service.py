@@ -153,10 +153,18 @@ class DeepResearchService:
             api_keys = {}
             if model == "openai":
                 api_keys["OPENAI_API_KEY"] = api_key
+                # Ensure we use default OpenAI base URL
+                os.environ.pop("ANTHROPIC_BASE_URL", None)
             elif model == "anthropic":
                 api_keys["ANTHROPIC_API_KEY"] = api_key
+                # Ensure we use default Anthropic base URL
+                os.environ.pop("ANTHROPIC_BASE_URL", None)
             elif model == "kimi":
-                api_keys["KIMI_API_KEY"] = api_key
+                # Kimi K2 uses Anthropic API format with custom base URL
+                api_keys["ANTHROPIC_API_KEY"] = api_key
+                # Set custom base URL for Kimi K2 (Moonshot AI) - matches your setup guide
+                os.environ["ANTHROPIC_BASE_URL"] = "https://api.moonshot.cn/anthropic"
+                logger.info(f"Configured Kimi K2 with base URL: https://api.moonshot.cn/anthropic")
             
             # Create configuration - use user's chosen model for ALL model operations
             config = RunnableConfig(
