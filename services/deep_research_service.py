@@ -7,10 +7,11 @@ Provides real-time streaming of research workflow stages and thinking processes
 import asyncio
 import json
 import logging
+import re
 import sys
 import os
 from datetime import datetime
-from typing import AsyncGenerator, Dict, Any, Optional
+from typing import AsyncGenerator, Dict, Any, Optional, List
 
 # Set environment variable to get API keys from config
 os.environ["GET_API_KEYS_FROM_CONFIG"] = "true"
@@ -249,7 +250,7 @@ class DeepResearchService:
     
     async def _generate_node_content(self, node_name: str, node_data: Any, node_count: int) -> str:
         """
-        Generate human-readable content for a workflow node with actual data extraction
+        Generate human-readable content for a workflow node with comprehensive data extraction
         
         Args:
             node_name: Name of the workflow node
@@ -257,39 +258,52 @@ class DeepResearchService:
             node_count: Current node number
             
         Returns:
-            Human-readable content string with actual content
+            Human-readable content string with actual AI messages and content
         """
         try:
+            # Log the structure for debugging
+            logger.info(f"Processing node {node_name} with data type: {type(node_data)}")
+            if hasattr(node_data, '__dict__'):
+                logger.info(f"Node data attributes: {list(node_data.__dict__.keys())}")
+            
             # Extract actual content based on node type
             extracted_content = ""
             
             if node_name == "clarify_with_user":
                 extracted_content = f"🔍 Step {node_count}: Analyzing research scope and clarifying requirements"
                 
-                # Extract clarification decision
-                if hasattr(node_data, 'messages') and node_data.messages:
-                    for msg in node_data.messages:
-                        if hasattr(msg, 'content') and isinstance(msg.content, str):
-                            if "clarification" in msg.content.lower() or "requirements" in msg.content.lower():
-                                preview = msg.content[:200] + "..." if len(msg.content) > 200 else msg.content
-                                extracted_content += f"\n💭 AI Analysis: {preview}"
-                                break
+                # Extract all messages from clarification
+                ai_messages = self._extract_ai_messages(node_data)
+                if ai_messages:
+                    extracted_content += f"\n\n💭 AI Clarification Process:"
+                    for i, msg in enumerate(ai_messages[:3]):  # Show up to 3 messages
+                        extracted_content += f"\n🤖 Message {i+1}: {msg}"
+                else:
+                    # Fallback: try to extract any text content
+                    fallback_content = self._extract_text_content(node_data)
+                    if fallback_content:
+                        extracted_content += f"\n💭 AI Decision: {fallback_content}"
                 
             elif node_name == "write_research_brief":
                 extracted_content = f"📝 Step {node_count}: Creating comprehensive research brief and strategy"
                 
-                # Extract research brief content
+                # Extract AI messages from research brief creation
+                ai_messages = self._extract_ai_messages(node_data)
+                if ai_messages:
+                    extracted_content += f"\n\n📋 AI Research Brief Generation:"
+                    for i, msg in enumerate(ai_messages[:2]):  # Show up to 2 messages
+                        extracted_content += f"\n🤖 Brief {i+1}: {msg}"
+                
+                # Also look for specific research brief attributes
                 if hasattr(node_data, 'research_brief') and node_data.research_brief:
                     brief_content = str(node_data.research_brief)[:300] + "..." if len(str(node_data.research_brief)) > 300 else str(node_data.research_brief)
-                    extracted_content += f"\n📋 Research Brief: {brief_content}"
-                elif hasattr(node_data, 'messages') and node_data.messages:
-                    # Look for research brief in messages
-                    for msg in node_data.messages:
-                        if hasattr(msg, 'content') and isinstance(msg.content, str):
-                            if len(msg.content) > 50 and ("research" in msg.content.lower() or "strategy" in msg.content.lower()):
-                                preview = msg.content[:300] + "..." if len(msg.content) > 300 else msg.content
-                                extracted_content += f"\n📋 Research Strategy: {preview}"
-                                break
+                    extracted_content += f"\n📄 Final Brief: {brief_content}"
+                
+                # Fallback content extraction
+                if not ai_messages:
+                    fallback_content = self._extract_text_content(node_data)
+                    if fallback_content:
+                        extracted_content += f"\n📋 Research Strategy: {fallback_content}"
                 
             elif node_name == "research_supervisor":
                 extracted_content = f"🔬 Step {node_count}: Conducting deep research using multiple tools and sources"
@@ -298,11 +312,16 @@ class DeepResearchService:
                 if hasattr(node_data, 'notes') and node_data.notes:
                     findings_count = len(node_data.notes)
                     extracted_content += f"\n📊 Found {findings_count} research findings"
-                    # Show first few findings
+                    # Show first few findings with source extraction
                     for i, note in enumerate(node_data.notes[:3]):
                         if note and len(str(note)) > 20:
-                            note_preview = str(note)[:150] + "..." if len(str(note)) > 150 else str(note)
+                            note_content = str(note)
+                            # Extract sources from the note
+                            sources = self._extract_sources_from_text(note_content)
+                            note_preview = note_content[:150] + "..." if len(note_content) > 150 else note_content
                             extracted_content += f"\n🔍 Finding {i+1}: {note_preview}"
+                            if sources:
+                                extracted_content += f"\n📎 Sources: {', '.join(sources[:2])}"
                 
                 # Extract compressed research
                 if hasattr(node_data, 'compressed_research') and node_data.compressed_research:
@@ -312,18 +331,23 @@ class DeepResearchService:
             elif node_name == "final_report_generation":
                 extracted_content = f"📊 Step {node_count}: Generating final research report with findings and analysis"
                 
+                # Extract AI messages from final report generation
+                ai_messages = self._extract_ai_messages(node_data)
+                if ai_messages:
+                    extracted_content += f"\n\n📄 AI Report Generation:"
+                    for i, msg in enumerate(ai_messages[:2]):  # Show up to 2 messages
+                        extracted_content += f"\n🤖 Report {i+1}: {msg}"
+                
                 # Extract final report content
                 if hasattr(node_data, 'final_report') and node_data.final_report:
                     report_preview = str(node_data.final_report)[:400] + "..." if len(str(node_data.final_report)) > 400 else str(node_data.final_report)
-                    extracted_content += f"\n📄 Final Report: {report_preview}"
-                elif hasattr(node_data, 'messages') and node_data.messages:
-                    # Look for final report in messages
-                    for msg in node_data.messages:
-                        if hasattr(msg, 'content') and isinstance(msg.content, str):
-                            if len(msg.content) > 100:
-                                report_preview = msg.content[:400] + "..." if len(msg.content) > 400 else msg.content
-                                extracted_content += f"\n📄 Final Report: {report_preview}"
-                                break
+                    extracted_content += f"\n📋 Generated Report: {report_preview}"
+                
+                # Fallback content extraction
+                if not ai_messages:
+                    fallback_content = self._extract_text_content(node_data)
+                    if fallback_content:
+                        extracted_content += f"\n📄 Final Report: {fallback_content}"
             
             else:
                 extracted_content = f"⚙️ Step {node_count}: Processing {node_name.replace('_', ' ').title()}"
@@ -341,6 +365,120 @@ class DeepResearchService:
         except Exception as e:
             logger.error(f"Error generating node content for {node_name}: {str(e)}")
             return f"⚙️ Step {node_count}: Processing {node_name}"
+    
+    def _extract_ai_messages(self, node_data: Any) -> List[str]:
+        """
+        Extract AI messages from node data
+        
+        Args:
+            node_data: Data from the workflow node
+            
+        Returns:
+            List of AI message contents
+        """
+        messages = []
+        
+        try:
+            # Check for messages attribute
+            if hasattr(node_data, 'messages') and node_data.messages:
+                for msg in node_data.messages:
+                    if hasattr(msg, 'content'):
+                        content = str(msg.content)
+                        # Filter for substantial AI responses (not just system messages)
+                        if len(content) > 20 and not content.startswith('Human:'):
+                            # Truncate very long messages
+                            if len(content) > 500:
+                                content = content[:500] + "..."
+                            messages.append(content)
+            
+            # Also check for direct content in various possible attributes
+            content_attributes = ['content', 'response', 'output', 'result', 'text']
+            for attr in content_attributes:
+                if hasattr(node_data, attr):
+                    attr_value = getattr(node_data, attr)
+                    if attr_value and isinstance(attr_value, str) and len(attr_value) > 20:
+                        if len(attr_value) > 500:
+                            attr_value = attr_value[:500] + "..."
+                        messages.append(attr_value)
+                        break
+            
+            return messages[:5]  # Limit to 5 messages max
+            
+        except Exception as e:
+            logger.error(f"Error extracting AI messages: {str(e)}")
+            return []
+    
+    def _extract_text_content(self, node_data: Any) -> str:
+        """
+        Extract any meaningful text content from node data as fallback
+        
+        Args:
+            node_data: Data from the workflow node
+            
+        Returns:
+            Extracted text content or empty string
+        """
+        try:
+            # Try various ways to extract text content
+            if hasattr(node_data, 'messages') and node_data.messages:
+                # Get the last substantial message
+                for msg in reversed(node_data.messages):
+                    if hasattr(msg, 'content') and isinstance(msg.content, str):
+                        if len(msg.content) > 50:
+                            return msg.content[:300] + ("..." if len(msg.content) > 300 else "")
+            
+            # Try converting the whole object to string as last resort
+            if hasattr(node_data, '__dict__'):
+                data_str = str(node_data.__dict__)
+                if len(data_str) > 100:
+                    return data_str[:200] + "..."
+            
+            return ""
+            
+        except Exception as e:
+            logger.error(f"Error extracting text content: {str(e)}")
+            return ""
+    
+    def _extract_sources_from_text(self, text: str) -> List[str]:
+        """
+        Extract sources and URLs from research text
+        
+        Args:
+            text: Text content to extract sources from
+            
+        Returns:
+            List of extracted sources
+        """
+        sources = []
+        
+        try:
+            # Extract URLs
+            url_pattern = r'https?://[^\s<>"{}|\\^`[\]]+'
+            urls = re.findall(url_pattern, text)
+            sources.extend(urls)
+            
+            # Extract source patterns
+            source_patterns = [
+                r'SOURCE:\s*([^\n]+)',
+                r'Source:\s*([^\n]+)', 
+                r'from\s+([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})',
+                r'according to\s+([^\n,.]+)',
+                r'cited from\s+([^\n,.]+)',
+                r'reference:\s*([^\n]+)',
+                r'via\s+([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})'
+            ]
+            
+            for pattern in source_patterns:
+                matches = re.findall(pattern, text, re.IGNORECASE)
+                sources.extend([match.strip() for match in matches if len(match.strip()) > 3])
+            
+            # Remove duplicates and filter
+            unique_sources = list(set(sources))
+            return [source for source in unique_sources if len(source) > 3][:5]  # Limit to 5 sources
+            
+        except Exception as e:
+            logger.error(f"Error extracting sources: {str(e)}")
+            return []
     
     async def _process_research_supervisor_data(
         self,
