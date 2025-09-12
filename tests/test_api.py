@@ -20,6 +20,7 @@ class TestBasicEndpoints:
         response = client.get("/")
         assert response.status_code == 200
         data = response.json()
+        
         assert "message" in data
         assert "Deep Research Agent API is running" in data["message"]
     
