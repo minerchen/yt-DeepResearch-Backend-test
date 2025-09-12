@@ -12,6 +12,9 @@ import os
 from datetime import datetime
 from typing import AsyncGenerator, Dict, Any, Optional
 
+# Set environment variable to get API keys from config
+os.environ["GET_API_KEYS_FROM_CONFIG"] = "true"
+
 # Add the open_deep_research to Python path
 sys.path.append('/Users/shenseanchen/Desktop/Dev/yt-DeepResearchAgent/open_deep_research/src')
 
@@ -134,6 +137,15 @@ class DeepResearchService:
             model_mapping = self.model_service.get_model_provider_mapping()
             langchain_model = model_mapping.get(model, "gpt-4")
             
+            # Create API keys configuration
+            api_keys = {}
+            if model == "openai":
+                api_keys["OPENAI_API_KEY"] = api_key
+            elif model == "anthropic":
+                api_keys["ANTHROPIC_API_KEY"] = api_key
+            elif model == "kimi":
+                api_keys["KIMI_API_KEY"] = api_key
+            
             # Create configuration
             config = RunnableConfig(
                 configurable={
@@ -143,10 +155,10 @@ class DeepResearchService:
                     "max_structured_output_retries": 3,
                     "search_api": "tavily",  # Default search API
                     "max_research_iterations": 5,
-                    "max_researchers": 3
+                    "max_researchers": 3,
+                    "apiKeys": api_keys
                 },
                 metadata={
-                    "user_api_key": api_key,
                     "model_type": model
                 }
             )

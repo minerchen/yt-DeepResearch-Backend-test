@@ -107,10 +107,10 @@ async def stream_research(request: ResearchRequest):
         
         # Validate model selection
         available_models = await model_service.get_available_models()
-        if request.model not in [model["id"] for model in available_models["models"]]:
+        if request.model not in [model.id for model in available_models["models"]]:
             raise HTTPException(
                 status_code=400, 
-                detail=f"Unsupported model: {request.model}. Available models: {[m['id'] for m in available_models['models']]}"
+                detail=f"Unsupported model: {request.model}. Available models: {[m.id for m in available_models['models']]}"
             )
         
         # Create streaming generator
