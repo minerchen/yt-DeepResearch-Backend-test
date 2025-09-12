@@ -61,8 +61,9 @@ model_service = ModelService()
 metrics_collector = MetricsCollector()
 
 @app.get("/")
+@app.head("/")
 async def root():
-    """Health check endpoint"""
+    """Health check endpoint - supports both GET and HEAD for Cloud Run health checks"""
     return {
         "message": "Deep Research Agent API is running",
         "version": "1.0.0",
@@ -70,8 +71,9 @@ async def root():
     }
 
 @app.get("/health")
+@app.head("/health")
 async def health_check():
-    """Detailed health check with service status"""
+    """Detailed health check with service status - supports both GET and HEAD"""
     return {
         "status": "healthy",
         "timestamp": datetime.utcnow().isoformat(),

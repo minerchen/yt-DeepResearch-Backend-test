@@ -563,6 +563,42 @@ class DeepResearchService:
             node_count: Current node number
         """
         try:
+            # Show research planning phase
+            yield StreamingEvent(
+                type="research_step",
+                stage=ResearchStage.RESEARCH_PLANNING,
+                content="🎯 Planning research strategy and identifying key information sources...",
+                timestamp=datetime.utcnow().isoformat(),
+                research_id=research_id,
+                model=model,
+                metadata={"step": "planning", "node_count": node_count}
+            )
+            
+            # Extract and show AI messages (research queries being made)
+            ai_messages = self._extract_ai_messages(node_data)
+            for i, message in enumerate(ai_messages[:3]):  # Show up to 3 research queries
+                if len(message) > 100:  # Only show substantial queries
+                    yield StreamingEvent(
+                        type="research_step",
+                        stage=ResearchStage.RESEARCH_QUERY,
+                        content=f"🔍 Research Query {i+1}: {message[:150]}..." if len(message) > 150 else f"🔍 Research Query {i+1}: {message}",
+                        timestamp=datetime.utcnow().isoformat(),
+                        research_id=research_id,
+                        model=model,
+                        metadata={"step": "query", "query_index": i+1, "total_queries": len(ai_messages)}
+                    )
+            
+            # Show analysis phase
+            yield StreamingEvent(
+                type="research_step",
+                stage=ResearchStage.RESEARCH_ANALYSIS,
+                content="📊 Analyzing findings from multiple sources and cross-referencing information...",
+                timestamp=datetime.utcnow().isoformat(),
+                research_id=research_id,
+                model=model,
+                metadata={"step": "analysis", "node_count": node_count}
+            )
+            
             # Check if we have research findings
             if hasattr(node_data, 'notes') and node_data.notes:
                 for i, note in enumerate(node_data.notes):
@@ -580,6 +616,17 @@ class DeepResearchService:
                                 "node_count": node_count
                             }
                         )
+            
+            # Show synthesis phase
+            yield StreamingEvent(
+                type="research_step",
+                stage=ResearchStage.RESEARCH_SYNTHESIS,
+                content="🧠 Synthesizing findings and preparing comprehensive analysis...",
+                timestamp=datetime.utcnow().isoformat(),
+                research_id=research_id,
+                model=model,
+                metadata={"step": "synthesis", "node_count": node_count}
+            )
             
             # Check for compressed research
             if hasattr(node_data, 'compressed_research') and node_data.compressed_research:
