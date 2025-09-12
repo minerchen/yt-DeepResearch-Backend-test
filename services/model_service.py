@@ -114,9 +114,9 @@ class ModelService:
             Dictionary mapping model IDs to LangChain model names
         """
         return {
-            "openai": "gpt-4",
-            "anthropic": "claude-3-5-sonnet-20241022", 
-            "kimi": "moonshot-v1-128k"  # Using Kimi's API model name
+            "openai": "openai:gpt-4",
+            "anthropic": "anthropic:claude-3-5-sonnet-20241022", 
+            "kimi": "kimi:moonshot-v1-128k"  # Using Kimi's API model name
         }
     
     def get_api_key_env_var(self, model_id: str) -> Optional[str]:
