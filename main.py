@@ -171,6 +171,8 @@ async def stream_research(request: ResearchRequest):
                 "Connection": "keep-alive",
                 "Access-Control-Allow-Origin": "*",
                 "X-Accel-Buffering": "no",  # Disable nginx buffering
+                "Keep-Alive": "timeout=300, max=100",  # 5 minute timeout
+                "X-Content-Type-Options": "nosniff",
             }
         )
         

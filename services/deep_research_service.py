@@ -85,30 +85,45 @@ class DeepResearchService:
             # Stream the research workflow
             node_count = 0
             
-            async for chunk in deep_researcher.astream(
-                initial_state,
-                config=config,
-                stream_mode="updates"
-            ):
-                node_count += 1
-                logger.info(f"Processing chunk {node_count}: {list(chunk.keys())}")
-                
-                # Process each chunk and convert to streaming event
-                for node_name, node_data in chunk.items():
-                    event = await self._process_workflow_node(
-                        node_name, node_data, research_id, model, node_count
-                    )
+            try:
+                async for chunk in deep_researcher.astream(
+                    initial_state,
+                    config=config,
+                    stream_mode="updates"
+                ):
+                    node_count += 1
+                    logger.info(f"Processing chunk {node_count}: {list(chunk.keys())}")
                     
-                    if event:
-                        current_stage = event.stage or current_stage
-                        yield event
-                        
-                    # Special handling for research_supervisor chunk to show research progress
-                    if node_name == "research_supervisor" and node_data:
-                        async for research_event in self._process_research_supervisor_data(
-                            node_data, research_id, model, node_count
-                        ):
-                            yield research_event
+                    # Process each chunk and convert to streaming event
+                    for node_name, node_data in chunk.items():
+                        try:
+                            logger.info(f"Processing node: {node_name} (chunk {node_count})")
+                            event = await self._process_workflow_node(
+                                node_name, node_data, research_id, model, node_count
+                            )
+                            
+                            if event:
+                                current_stage = event.stage or current_stage
+                                logger.info(f"Yielding event for {node_name}: {event.type}")
+                                yield event
+                                
+                            # Special handling for research_supervisor chunk to show research progress
+                            if node_name == "research_supervisor" and node_data:
+                                logger.info(f"Processing research supervisor data for chunk {node_count}")
+                                async for research_event in self._process_research_supervisor_data(
+                                    node_data, research_id, model, node_count
+                                ):
+                                    logger.info(f"Yielding research supervisor event: {research_event.type}")
+                                    yield research_event
+                        except Exception as e:
+                            logger.error(f"Error processing node {node_name}: {str(e)}")
+                            # Continue processing other nodes
+                            continue
+                            
+                logger.info(f"Completed streaming workflow with {node_count} chunks")
+            except Exception as e:
+                logger.error(f"Error in streaming workflow: {str(e)}")
+                raise
             
             # Final completion event
             yield StreamingEvent(
@@ -166,24 +181,42 @@ class DeepResearchService:
                 os.environ["ANTHROPIC_BASE_URL"] = "https://api.moonshot.cn/anthropic"
                 logger.info(f"Configured Kimi K2 with base URL: https://api.moonshot.cn/anthropic")
             
+            # For Kimi, we need to specify the model provider explicitly
+            model_provider = None
+            if model == "kimi":
+                model_provider = "anthropic"  # Kimi uses Anthropic API format
+            elif model == "openai":
+                model_provider = "openai"
+            elif model == "anthropic":
+                model_provider = "anthropic"
+            
             # Create configuration - use user's chosen model for ALL model operations
+            config_dict = {
+                "research_model": langchain_model,
+                "research_model_max_tokens": 4000,
+                "final_report_model": langchain_model,  # Use same model for final report
+                "final_report_model_max_tokens": 8000,
+                "compression_model": langchain_model,  # Use same model for compression
+                "compression_model_max_tokens": 4000,
+                "summarization_model": langchain_model,  # Use same model for summarization
+                "summarization_model_max_tokens": 4000,
+                "allow_clarification": False,
+                "max_structured_output_retries": 3,
+                "search_api": "anthropic",  # Use Anthropic search API
+                "max_research_iterations": 5,
+                "max_researchers": 3,
+                "apiKeys": api_keys
+            }
+            
+            # Add model provider if specified
+            if model_provider:
+                config_dict["research_model_provider"] = model_provider
+                config_dict["final_report_model_provider"] = model_provider
+                config_dict["compression_model_provider"] = model_provider
+                config_dict["summarization_model_provider"] = model_provider
+            
             config = RunnableConfig(
-                configurable={
-                    "research_model": langchain_model,
-                    "research_model_max_tokens": 4000,
-                    "final_report_model": langchain_model,  # Use same model for final report
-                    "final_report_model_max_tokens": 8000,
-                    "compression_model": langchain_model,  # Use same model for compression
-                    "compression_model_max_tokens": 4000,
-                    "summarization_model": langchain_model,  # Use same model for summarization
-                    "summarization_model_max_tokens": 4000,
-                    "allow_clarification": False,
-                    "max_structured_output_retries": 3,
-                    "search_api": "anthropic",  # Use Anthropic search API
-                    "max_research_iterations": 5,
-                    "max_researchers": 3,
-                    "apiKeys": api_keys
-                },
+                configurable=config_dict,
                 metadata={
                     "model_type": model
                 }
