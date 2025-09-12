@@ -261,10 +261,19 @@ class DeepResearchService:
             Human-readable content string with actual AI messages and content
         """
         try:
-            # Log the structure for debugging
-            logger.info(f"Processing node {node_name} with data type: {type(node_data)}")
+            # Enhanced logging for debugging
+            logger.info(f"=== PROCESSING NODE {node_name} ===")
+            logger.info(f"Node data type: {type(node_data)}")
             if hasattr(node_data, '__dict__'):
                 logger.info(f"Node data attributes: {list(node_data.__dict__.keys())}")
+                # Log the actual values for key attributes
+                for attr in ['messages', 'final_report', 'research_brief', 'notes', 'compressed_research']:
+                    if hasattr(node_data, attr):
+                        attr_value = getattr(node_data, attr)
+                        logger.info(f"  {attr}: {type(attr_value)} - {str(attr_value)[:200] if attr_value else 'None'}...")
+            
+            # Try to log the raw node_data structure
+            logger.info(f"Raw node_data: {str(node_data)[:500]}...")
             
             # Extract actual content based on node type
             extracted_content = ""
@@ -272,38 +281,48 @@ class DeepResearchService:
             if node_name == "clarify_with_user":
                 extracted_content = f"🔍 Step {node_count}: Analyzing research scope and clarifying requirements"
                 
-                # Extract all messages from clarification
-                ai_messages = self._extract_ai_messages(node_data)
-                if ai_messages:
-                    extracted_content += f"\n\n💭 AI Clarification Process:"
-                    for i, msg in enumerate(ai_messages[:3]):  # Show up to 3 messages
-                        extracted_content += f"\n🤖 Message {i+1}: {msg}"
+                # Handle None case for clarify_with_user
+                if node_data is None:
+                    extracted_content += f"\n✅ No clarification needed - proceeding with original query"
                 else:
-                    # Fallback: try to extract any text content
-                    fallback_content = self._extract_text_content(node_data)
-                    if fallback_content:
-                        extracted_content += f"\n💭 AI Decision: {fallback_content}"
+                    # Extract all messages from clarification
+                    ai_messages = self._extract_ai_messages(node_data)
+                    if ai_messages:
+                        extracted_content += f"\n\n💭 AI Clarification Process:"
+                        for i, msg in enumerate(ai_messages[:3]):  # Show up to 3 messages
+                            extracted_content += f"\n🤖 Message {i+1}: {msg}"
+                    else:
+                        # Fallback: try to extract any text content
+                        fallback_content = self._extract_text_content(node_data)
+                        if fallback_content:
+                            extracted_content += f"\n💭 AI Decision: {fallback_content}"
                 
             elif node_name == "write_research_brief":
                 extracted_content = f"📝 Step {node_count}: Creating comprehensive research brief and strategy"
                 
-                # Extract AI messages from research brief creation
-                ai_messages = self._extract_ai_messages(node_data)
-                if ai_messages:
-                    extracted_content += f"\n\n📋 AI Research Brief Generation:"
-                    for i, msg in enumerate(ai_messages[:2]):  # Show up to 2 messages
-                        extracted_content += f"\n🤖 Brief {i+1}: {msg}"
-                
-                # Also look for specific research brief attributes
-                if hasattr(node_data, 'research_brief') and node_data.research_brief:
-                    brief_content = str(node_data.research_brief)[:300] + "..." if len(str(node_data.research_brief)) > 300 else str(node_data.research_brief)
-                    extracted_content += f"\n📄 Final Brief: {brief_content}"
-                
-                # Fallback content extraction
-                if not ai_messages:
-                    fallback_content = self._extract_text_content(node_data)
-                    if fallback_content:
-                        extracted_content += f"\n📋 Research Strategy: {fallback_content}"
+                # Handle dict structure for research brief
+                if isinstance(node_data, dict) and 'research_brief' in node_data:
+                    brief_content = str(node_data['research_brief'])
+                    # Show the full research brief content (no truncation)
+                    extracted_content += f"\n\n📋 Generated Research Brief:\n{brief_content}"
+                else:
+                    # Extract AI messages from research brief creation
+                    ai_messages = self._extract_ai_messages(node_data)
+                    if ai_messages:
+                        extracted_content += f"\n\n📋 AI Research Brief Generation:"
+                        for i, msg in enumerate(ai_messages[:2]):  # Show up to 2 messages
+                            extracted_content += f"\n🤖 Brief {i+1}: {msg}"
+                    
+                    # Also look for specific research brief attributes
+                    if hasattr(node_data, 'research_brief') and node_data.research_brief:
+                        brief_content = str(node_data.research_brief)[:300] + "..." if len(str(node_data.research_brief)) > 300 else str(node_data.research_brief)
+                        extracted_content += f"\n📄 Final Brief: {brief_content}"
+                    
+                    # Fallback content extraction
+                    if not ai_messages:
+                        fallback_content = self._extract_text_content(node_data)
+                        if fallback_content:
+                            extracted_content += f"\n📋 Research Strategy: {fallback_content}"
                 
             elif node_name == "research_supervisor":
                 extracted_content = f"🔬 Step {node_count}: Conducting deep research using multiple tools and sources"
@@ -331,23 +350,29 @@ class DeepResearchService:
             elif node_name == "final_report_generation":
                 extracted_content = f"📊 Step {node_count}: Generating final research report with findings and analysis"
                 
-                # Extract AI messages from final report generation
-                ai_messages = self._extract_ai_messages(node_data)
-                if ai_messages:
-                    extracted_content += f"\n\n📄 AI Report Generation:"
-                    for i, msg in enumerate(ai_messages[:2]):  # Show up to 2 messages
-                        extracted_content += f"\n🤖 Report {i+1}: {msg}"
-                
-                # Extract final report content
-                if hasattr(node_data, 'final_report') and node_data.final_report:
-                    report_preview = str(node_data.final_report)[:400] + "..." if len(str(node_data.final_report)) > 400 else str(node_data.final_report)
-                    extracted_content += f"\n📋 Generated Report: {report_preview}"
-                
-                # Fallback content extraction
-                if not ai_messages:
-                    fallback_content = self._extract_text_content(node_data)
-                    if fallback_content:
-                        extracted_content += f"\n📄 Final Report: {fallback_content}"
+                # Handle dict structure for final report
+                if isinstance(node_data, dict) and 'final_report' in node_data:
+                    report_content = str(node_data['final_report'])
+                    # Show the full final report content
+                    extracted_content += f"\n\n📄 Final Report: {report_content}"
+                else:
+                    # Extract AI messages from final report generation
+                    ai_messages = self._extract_ai_messages(node_data)
+                    if ai_messages:
+                        extracted_content += f"\n\n📄 AI Report Generation:"
+                        for i, msg in enumerate(ai_messages[:2]):  # Show up to 2 messages
+                            extracted_content += f"\n🤖 Report {i+1}: {msg}"
+                    
+                    # Extract final report content
+                    if hasattr(node_data, 'final_report') and node_data.final_report:
+                        report_preview = str(node_data.final_report)[:400] + "..." if len(str(node_data.final_report)) > 400 else str(node_data.final_report)
+                        extracted_content += f"\n📋 Generated Report: {report_preview}"
+                    
+                    # Fallback content extraction
+                    if not ai_messages:
+                        fallback_content = self._extract_text_content(node_data)
+                        if fallback_content:
+                            extracted_content += f"\n📄 Final Report: {fallback_content}"
             
             else:
                 extracted_content = f"⚙️ Step {node_count}: Processing {node_name.replace('_', ' ').title()}"
