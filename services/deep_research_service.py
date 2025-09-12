@@ -16,7 +16,10 @@ from typing import AsyncGenerator, Dict, Any, Optional
 os.environ["GET_API_KEYS_FROM_CONFIG"] = "true"
 
 # Add the open_deep_research to Python path
-sys.path.append('/Users/shenseanchen/Desktop/Dev/yt-DeepResearchAgent/open_deep_research/src')
+import os
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.append(parent_dir)
 
 from open_deep_research.deep_researcher import deep_researcher
 from open_deep_research.configuration import Configuration

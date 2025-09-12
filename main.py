@@ -214,10 +214,12 @@ async def test_research_endpoint(request: ResearchRequest):
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8080))
+    # Disable reload in production for faster startup
+    reload = os.getenv("ENVIRONMENT", "production") == "development"
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
         port=port,
-        reload=True,
+        reload=reload,
         log_level="info"
     )
