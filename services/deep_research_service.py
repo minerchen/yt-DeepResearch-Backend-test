@@ -90,6 +90,7 @@ class DeepResearchService:
                 stream_mode="updates"
             ):
                 node_count += 1
+                logger.info(f"Processing chunk {node_count}: {list(chunk.keys())}")
                 
                 # Process each chunk and convert to streaming event
                 for node_name, node_data in chunk.items():
@@ -100,6 +101,13 @@ class DeepResearchService:
                     if event:
                         current_stage = event.stage or current_stage
                         yield event
+                        
+                    # Special handling for research_supervisor chunk to show research progress
+                    if node_name == "research_supervisor" and node_data:
+                        async for research_event in self._process_research_supervisor_data(
+                            node_data, research_id, model, node_count
+                        ):
+                            yield research_event
             
             # Final completion event
             yield StreamingEvent(
@@ -149,14 +157,20 @@ class DeepResearchService:
             elif model == "kimi":
                 api_keys["KIMI_API_KEY"] = api_key
             
-            # Create configuration
+            # Create configuration - use user's chosen model for ALL model operations
             config = RunnableConfig(
                 configurable={
                     "research_model": langchain_model,
                     "research_model_max_tokens": 4000,
-                    "allow_clarification": True,
+                    "final_report_model": langchain_model,  # Use same model for final report
+                    "final_report_model_max_tokens": 8000,
+                    "compression_model": langchain_model,  # Use same model for compression
+                    "compression_model_max_tokens": 4000,
+                    "summarization_model": langchain_model,  # Use same model for summarization
+                    "summarization_model_max_tokens": 4000,
+                    "allow_clarification": False,
                     "max_structured_output_retries": 3,
-                    "search_api": "tavily",  # Default search API
+                    "search_api": "anthropic",  # Use Anthropic search API
                     "max_research_iterations": 5,
                     "max_researchers": 3,
                     "apiKeys": api_keys
@@ -235,7 +249,7 @@ class DeepResearchService:
     
     async def _generate_node_content(self, node_name: str, node_data: Any, node_count: int) -> str:
         """
-        Generate human-readable content for a workflow node
+        Generate human-readable content for a workflow node with actual data extraction
         
         Args:
             node_name: Name of the workflow node
@@ -243,31 +257,141 @@ class DeepResearchService:
             node_count: Current node number
             
         Returns:
-            Human-readable content string
+            Human-readable content string with actual content
         """
         try:
-            content_templates = {
-                "clarify_with_user": f"🔍 Step {node_count}: Analyzing research scope and clarifying requirements",
-                "write_research_brief": f"📝 Step {node_count}: Creating comprehensive research brief and strategy",
-                "research_supervisor": f"🔬 Step {node_count}: Conducting deep research using multiple tools and sources",
-                "final_report_generation": f"📊 Step {node_count}: Generating final research report with findings and analysis"
-            }
+            # Extract actual content based on node type
+            extracted_content = ""
             
-            base_content = content_templates.get(
-                node_name, 
-                f"⚙️ Step {node_count}: Processing {node_name.replace('_', ' ').title()}"
-            )
+            if node_name == "clarify_with_user":
+                extracted_content = f"🔍 Step {node_count}: Analyzing research scope and clarifying requirements"
+                
+                # Extract clarification decision
+                if hasattr(node_data, 'messages') and node_data.messages:
+                    for msg in node_data.messages:
+                        if hasattr(msg, 'content') and isinstance(msg.content, str):
+                            if "clarification" in msg.content.lower() or "requirements" in msg.content.lower():
+                                preview = msg.content[:200] + "..." if len(msg.content) > 200 else msg.content
+                                extracted_content += f"\n💭 AI Analysis: {preview}"
+                                break
+                
+            elif node_name == "write_research_brief":
+                extracted_content = f"📝 Step {node_count}: Creating comprehensive research brief and strategy"
+                
+                # Extract research brief content
+                if hasattr(node_data, 'research_brief') and node_data.research_brief:
+                    brief_content = str(node_data.research_brief)[:300] + "..." if len(str(node_data.research_brief)) > 300 else str(node_data.research_brief)
+                    extracted_content += f"\n📋 Research Brief: {brief_content}"
+                elif hasattr(node_data, 'messages') and node_data.messages:
+                    # Look for research brief in messages
+                    for msg in node_data.messages:
+                        if hasattr(msg, 'content') and isinstance(msg.content, str):
+                            if len(msg.content) > 50 and ("research" in msg.content.lower() or "strategy" in msg.content.lower()):
+                                preview = msg.content[:300] + "..." if len(msg.content) > 300 else msg.content
+                                extracted_content += f"\n📋 Research Strategy: {preview}"
+                                break
+                
+            elif node_name == "research_supervisor":
+                extracted_content = f"🔬 Step {node_count}: Conducting deep research using multiple tools and sources"
+                
+                # Extract research findings
+                if hasattr(node_data, 'notes') and node_data.notes:
+                    findings_count = len(node_data.notes)
+                    extracted_content += f"\n📊 Found {findings_count} research findings"
+                    # Show first few findings
+                    for i, note in enumerate(node_data.notes[:3]):
+                        if note and len(str(note)) > 20:
+                            note_preview = str(note)[:150] + "..." if len(str(note)) > 150 else str(note)
+                            extracted_content += f"\n🔍 Finding {i+1}: {note_preview}"
+                
+                # Extract compressed research
+                if hasattr(node_data, 'compressed_research') and node_data.compressed_research:
+                    research_summary = str(node_data.compressed_research)[:200] + "..." if len(str(node_data.compressed_research)) > 200 else str(node_data.compressed_research)
+                    extracted_content += f"\n📝 Research Summary: {research_summary}"
+                
+            elif node_name == "final_report_generation":
+                extracted_content = f"📊 Step {node_count}: Generating final research report with findings and analysis"
+                
+                # Extract final report content
+                if hasattr(node_data, 'final_report') and node_data.final_report:
+                    report_preview = str(node_data.final_report)[:400] + "..." if len(str(node_data.final_report)) > 400 else str(node_data.final_report)
+                    extracted_content += f"\n📄 Final Report: {report_preview}"
+                elif hasattr(node_data, 'messages') and node_data.messages:
+                    # Look for final report in messages
+                    for msg in node_data.messages:
+                        if hasattr(msg, 'content') and isinstance(msg.content, str):
+                            if len(msg.content) > 100:
+                                report_preview = msg.content[:400] + "..." if len(msg.content) > 400 else msg.content
+                                extracted_content += f"\n📄 Final Report: {report_preview}"
+                                break
             
-            # Add additional context if available
-            if hasattr(node_data, 'messages') and node_data.messages:
-                last_message = node_data.messages[-1]
-                if hasattr(last_message, 'content') and isinstance(last_message.content, str):
-                    if len(last_message.content) > 100:
-                        preview = last_message.content[:100] + "..."
-                        base_content += f"\n💭 Thinking: {preview}"
+            else:
+                extracted_content = f"⚙️ Step {node_count}: Processing {node_name.replace('_', ' ').title()}"
             
-            return base_content
+            # Always try to extract general message content if we haven't found specific content
+            if "\n" not in extracted_content and hasattr(node_data, 'messages') and node_data.messages:
+                for msg in node_data.messages:
+                    if hasattr(msg, 'content') and isinstance(msg.content, str) and len(msg.content) > 50:
+                        preview = msg.content[:200] + "..." if len(msg.content) > 200 else msg.content
+                        extracted_content += f"\n💭 Content: {preview}"
+                        break
+            
+            return extracted_content
             
         except Exception as e:
-            logger.error(f"Error generating node content: {str(e)}")
+            logger.error(f"Error generating node content for {node_name}: {str(e)}")
             return f"⚙️ Step {node_count}: Processing {node_name}"
+    
+    async def _process_research_supervisor_data(
+        self,
+        node_data: Any,
+        research_id: str,
+        model: str,
+        node_count: int
+    ) -> None:
+        """
+        Process research supervisor data to extract and stream research findings
+        
+        Args:
+            node_data: Data from the research supervisor node
+            research_id: Research session ID
+            model: Model being used
+            node_count: Current node number
+        """
+        try:
+            # Check if we have research findings
+            if hasattr(node_data, 'notes') and node_data.notes:
+                for i, note in enumerate(node_data.notes):
+                    if note and len(str(note)) > 50:  # Only show substantial content
+                        yield StreamingEvent(
+                            type="research_finding",
+                            stage=ResearchStage.RESEARCH_EXECUTION,
+                            content=f"🔍 Research Finding {i+1}: {str(note)[:200]}..." if len(str(note)) > 200 else f"🔍 Research Finding {i+1}: {str(note)}",
+                            timestamp=datetime.utcnow().isoformat(),
+                            research_id=research_id,
+                            model=model,
+                            metadata={
+                                "finding_index": i+1,
+                                "finding_length": len(str(note)),
+                                "node_count": node_count
+                            }
+                        )
+            
+            # Check for compressed research
+            if hasattr(node_data, 'compressed_research') and node_data.compressed_research:
+                yield StreamingEvent(
+                    type="research_summary",
+                    stage=ResearchStage.RESEARCH_EXECUTION,
+                    content=f"📊 Research Summary: {str(node_data.compressed_research)[:300]}..." if len(str(node_data.compressed_research)) > 300 else f"📊 Research Summary: {str(node_data.compressed_research)}",
+                    timestamp=datetime.utcnow().isoformat(),
+                    research_id=research_id,
+                    model=model,
+                    metadata={
+                        "summary_length": len(str(node_data.compressed_research)),
+                        "node_count": node_count
+                    }
+                )
+                
+        except Exception as e:
+            logger.error(f"Error processing research supervisor data: {str(e)}")
+            # Don't yield error events for this as it's supplementary
