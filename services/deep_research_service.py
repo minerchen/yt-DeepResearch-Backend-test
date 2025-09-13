@@ -60,7 +60,9 @@ class DeepResearchService:
         Yields:
             StreamingEvent: Real-time updates about the research progress
         """
+        import time
         current_stage = ResearchStage.INITIALIZATION
+        workflow_start_time = time.time()
         
         try:
             # Configure the research workflow
@@ -79,11 +81,12 @@ class DeepResearchService:
                 timestamp=datetime.utcnow().isoformat(),
                 research_id=research_id,
                 model=model,
-                metadata={"query": query, "model_config": model}
+                metadata={"query": query, "model_config": model, "start_time": workflow_start_time}
             )
             
             # Stream the research workflow
             node_count = 0
+            chunk_start_time = time.time()
             
             try:
                 async for chunk in deep_researcher.astream(
@@ -92,22 +95,32 @@ class DeepResearchService:
                     stream_mode="updates"
                 ):
                     node_count += 1
-                    logger.info(f"Processing chunk {node_count}: {list(chunk.keys())}")
+                    chunk_duration = time.time() - chunk_start_time
+                    logger.info(f"Processing chunk {node_count}: {list(chunk.keys())} (took {chunk_duration:.2f}s)")
                     
-                    # Yield API call information for transparency
+                    # Yield API call information for transparency with timing
                     yield StreamingEvent(
                         type="api_call",
                         stage=current_stage,
-                        content=f"API Call to {model}: Processing workflow chunk {node_count} with nodes: {', '.join(chunk.keys())}",
+                        content=f"API Call to {model}: Processing workflow chunk {node_count} with nodes: {', '.join(chunk.keys())} (⏱️ {chunk_duration:.1f}s)",
                         timestamp=datetime.utcnow().isoformat(),
                         research_id=research_id,
                         model=model,
-                        metadata={"chunk_number": node_count, "nodes": list(chunk.keys())}
+                        metadata={
+                            "chunk_number": node_count, 
+                            "nodes": list(chunk.keys()),
+                            "chunk_duration": chunk_duration,
+                            "total_elapsed": time.time() - workflow_start_time
+                        }
                     )
+                    
+                    # Reset timer for next chunk
+                    chunk_start_time = time.time()
                     
                     # Process each chunk and convert to streaming event
                     for node_name, node_data in chunk.items():
                         try:
+                            node_start_time = time.time()
                             logger.info(f"Processing node: {node_name} (chunk {node_count})")
                             event = await self._process_workflow_node(
                                 node_name, node_data, research_id, model, node_count
@@ -115,8 +128,30 @@ class DeepResearchService:
                             
                             if event:
                                 current_stage = event.stage or current_stage
-                                logger.info(f"Yielding event for {node_name}: {event.type}")
+                                node_duration = time.time() - node_start_time
+                                logger.info(f"Yielding event for {node_name}: {event.type} (took {node_duration:.2f}s)")
+                                
+                                # Add timing info to event metadata
+                                if event.metadata:
+                                    event.metadata["node_duration"] = node_duration
+                                else:
+                                    event.metadata = {"node_duration": node_duration}
+                                
                                 yield event
+                                
+                                # Extract and send sources immediately if found
+                                if event.content:
+                                    sources = self._extract_sources_from_text(event.content)
+                                    if sources:
+                                        yield StreamingEvent(
+                                            type="sources_found",
+                                            stage=current_stage,
+                                            content=f"📎 Found {len(sources)} sources",
+                                            timestamp=datetime.utcnow().isoformat(),
+                                            research_id=research_id,
+                                            model=model,
+                                            metadata={"sources": sources, "node_name": node_name}
+                                        )
                                 
                             # Special handling for research_supervisor chunk to show research progress
                             if node_name == "research_supervisor" and node_data:
@@ -214,6 +249,7 @@ class DeepResearchService:
                 model_provider = "anthropic"
             
             # Create configuration - use user's chosen model for ALL model operations
+            # OPTIMIZED: Reduce iterations and researchers to speed up process
             config_dict = {
                 "research_model": langchain_model,
                 "research_model_max_tokens": 4000,
@@ -224,10 +260,13 @@ class DeepResearchService:
                 "summarization_model": langchain_model,  # Use same model for summarization
                 "summarization_model_max_tokens": 4000,
                 "allow_clarification": False,
-                "max_structured_output_retries": 3,
+                "max_structured_output_retries": 2,  # Reduced from 3 to 2
                 "search_api": "anthropic",  # Use Anthropic search API
-                "max_research_iterations": 5,
-                "max_researchers": 3,
+                # CRITICAL FIX: These are the actual controlling parameters
+                "max_researcher_iterations": 2,  # Reduced from 6 to 2 (supervisor loop limit)
+                "max_react_tool_calls": 5,  # Reduced from 10 to 5 (individual researcher limit)
+                "max_research_iterations": 3,  # This was wrong parameter name
+                "max_researchers": 2,  # This was wrong parameter name
                 # SIMPLIFIED: Direct user API key (no more complex apiKeys dictionary)
                 "user_api_key": user_api_key
                 # LEGACY: Old complex system (commented out for future env variable use)
@@ -587,7 +626,7 @@ class DeepResearchService:
         research_id: str,
         model: str,
         node_count: int
-    ) -> None:
+    ) -> AsyncGenerator[StreamingEvent, None]:
         """
         Process research supervisor data to extract and stream research findings
         
@@ -609,19 +648,126 @@ class DeepResearchService:
                 metadata={"step": "planning", "node_count": node_count}
             )
             
+            # Extract supervisor messages to show tool decisions
+            supervisor_messages = []
+            if hasattr(node_data, 'supervisor_messages') and node_data.supervisor_messages:
+                supervisor_messages = node_data.supervisor_messages
+            elif isinstance(node_data, dict) and 'supervisor_messages' in node_data:
+                supervisor_messages = node_data['supervisor_messages']
+            
+            # Show supervisor tool decisions
+            for i, msg in enumerate(supervisor_messages[:3]):
+                if hasattr(msg, 'tool_calls') and msg.tool_calls:
+                    for j, tool_call in enumerate(msg.tool_calls):
+                        tool_name = tool_call.get('name', 'unknown_tool')
+                        tool_args = tool_call.get('args', {})
+                        
+                        if tool_name == 'ConductResearch':
+                            research_topic = tool_args.get('research_topic', 'Unknown topic')
+                            yield StreamingEvent(
+                                type="research_step",
+                                stage=ResearchStage.RESEARCH_EXECUTION,
+                                content=f"🎯 **Supervisor Decision**: Conducting research on '{research_topic}'",
+                                timestamp=datetime.utcnow().isoformat(),
+                                research_id=research_id,
+                                model=model,
+                                metadata={"step": "supervisor_decision", "tool": tool_name, "topic": research_topic}
+                            )
+                        elif tool_name == 'think_tool':
+                            reflection = tool_args.get('reflection', '')[:200] + "..." if len(tool_args.get('reflection', '')) > 200 else tool_args.get('reflection', '')
+                            yield StreamingEvent(
+                                type="research_step",
+                                stage=ResearchStage.RESEARCH_PLANNING,
+                                content=f"🤔 **Supervisor Thinking**: {reflection}",
+                                timestamp=datetime.utcnow().isoformat(),
+                                research_id=research_id,
+                                model=model,
+                                metadata={"step": "supervisor_thinking", "tool": tool_name}
+                            )
+                        elif tool_name == 'ResearchComplete':
+                            yield StreamingEvent(
+                                type="research_step",
+                                stage=ResearchStage.RESEARCH_SYNTHESIS,
+                                content=f"✅ **Supervisor Decision**: Research complete - sufficient information gathered",
+                                timestamp=datetime.utcnow().isoformat(),
+                                research_id=research_id,
+                                model=model,
+                                metadata={"step": "supervisor_completion", "tool": tool_name}
+                            )
+            
             # Extract and show AI messages (research queries being made)
             ai_messages = self._extract_ai_messages(node_data)
-            for i, message in enumerate(ai_messages[:3]):  # Show up to 3 research queries
-                if len(message) > 100:  # Only show substantial queries
+            research_queries = []
+            search_urls = []
+            
+            for i, message in enumerate(ai_messages[:5]):  # Show up to 5 research queries
+                if len(message) > 50:  # Show more queries for transparency
+                    # Extract search terms and URLs from message
+                    urls_in_message = self._extract_sources_from_text(message)
+                    search_urls.extend(urls_in_message)
+                    
+                    # Clean up message for display and detect tool usage
+                    display_message = message
+                    if 'search' in message.lower():
+                        display_message = f"🌐 **Web Search**: {message[:150]}..." if len(message) > 150 else f"🌐 **Web Search**: {message}"
+                    elif 'think' in message.lower():
+                        display_message = f"💭 **AI Thinking**: {message[:150]}..." if len(message) > 150 else f"💭 **AI Thinking**: {message}"
+                    else:
+                        display_message = f"🔍 **Research Action**: {message[:150]}..." if len(message) > 150 else f"🔍 **Research Action**: {message}"
+                    
+                    research_queries.append(display_message)
+                    
                     yield StreamingEvent(
                         type="research_step",
-                        stage=ResearchStage.RESEARCH_QUERY,
-                        content=f"🔍 Research Query {i+1}: {message[:150]}..." if len(message) > 150 else f"🔍 Research Query {i+1}: {message}",
+                        stage=ResearchStage.RESEARCH_EXECUTION,
+                        content=display_message,
                         timestamp=datetime.utcnow().isoformat(),
                         research_id=research_id,
                         model=model,
-                        metadata={"step": "query", "query_index": i+1, "total_queries": len(ai_messages)}
+                        metadata={
+                            "step": "research_action", 
+                            "query_index": i+1, 
+                            "total_queries": len(ai_messages),
+                            "urls": urls_in_message
+                        }
                     )
+                    
+                    # Send sources immediately if found
+                    if urls_in_message:
+                        yield StreamingEvent(
+                            type="sources_found",
+                            stage=ResearchStage.RESEARCH_EXECUTION,
+                            content=f"📎 Found {len(urls_in_message)} sources from research action {i+1}",
+                            timestamp=datetime.utcnow().isoformat(),
+                            research_id=research_id,
+                            model=model,
+                            metadata={"sources": urls_in_message, "search_index": i+1}
+                        )
+            
+            # Show comprehensive research progress
+            if research_queries:
+                comprehensive_update = f"## 🔍 Research Activities Completed:\n\n"
+                for i, query in enumerate(research_queries, 1):
+                    comprehensive_update += f"**{i}.** {query}\n\n"
+                
+                if search_urls:
+                    comprehensive_update += f"\n## 📎 Sources Discovered:\n"
+                    for i, url in enumerate(search_urls[:5], 1):  # Show first 5 URLs
+                        domain = url.replace('https://', '').replace('http://', '').split('/')[0]
+                        comprehensive_update += f"- [{domain}]({url})\n"
+                    
+                    if len(search_urls) > 5:
+                        comprehensive_update += f"- +{len(search_urls) - 5} more sources...\n"
+                
+                yield StreamingEvent(
+                    type="research_step",
+                    stage=ResearchStage.RESEARCH_EXECUTION,
+                    content=comprehensive_update,
+                    timestamp=datetime.utcnow().isoformat(),
+                    research_id=research_id,
+                    model=model,
+                    metadata={"step": "comprehensive_progress", "total_searches": len(research_queries), "total_sources": len(search_urls)}
+                )
             
             # Show analysis phase
             yield StreamingEvent(
