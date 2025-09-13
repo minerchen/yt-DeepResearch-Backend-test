@@ -23,9 +23,9 @@ class ModelService:
         return {
             "openai": AvailableModel(
                 id="openai",
-                name="OpenAI GPT-4o",
+                name="OpenAI GPT-4o (Latest)",
                 provider="OpenAI",
-                description="Advanced language model with excellent reasoning and research capabilities (128k tokens)",
+                description="Latest GPT-4o model with excellent reasoning and research capabilities (128k tokens)",
                 capabilities=[
                     "web_search",
                     "document_analysis", 
@@ -37,9 +37,9 @@ class ModelService:
             ),
             "anthropic": AvailableModel(
                 id="anthropic",
-                name="Anthropic Claude",
+                name="Claude 3.5 Sonnet (Latest)",
                 provider="Anthropic",
-                description="Constitutional AI model with strong analytical and research skills",
+                description="Latest Claude 3.5 Sonnet with enhanced analytical and research capabilities (200k tokens)",
                 capabilities=[
                     "web_search",
                     "document_analysis",
@@ -51,17 +51,19 @@ class ModelService:
             ),
             "kimi": AvailableModel(
                 id="kimi",
-                name="Kimi K2 0905",
-                provider="Kimi",
-                description="Advanced Chinese AI model with strong research and analytical capabilities",
+                name="Kimi K2-Instruct-0905 (Latest)",
+                provider="Moonshot AI",
+                description="Latest Kimi K2-Instruct-0905: state-of-the-art MoE model with 32B activated parameters, enhanced agentic coding intelligence",
                 capabilities=[
                     "web_search",
                     "document_analysis",
                     "multilingual_support",
                     "multi-step_reasoning",
-                    "structured_output"
+                    "structured_output",
+                    "tool_calling",
+                    "coding_assistance"
                 ],
-                max_tokens=200000
+                max_tokens=128000
             )
         }
     
@@ -76,7 +78,7 @@ class ModelService:
             return {
                 "models": list(self._models.values()),
                 "total_count": len(self._models),
-                "supported_providers": ["OpenAI", "Anthropic", "Kimi"]
+                "supported_providers": ["OpenAI", "Anthropic", "Moonshot AI"]
             }
         except Exception as e:
             logger.error(f"Error getting available models: {str(e)}")
@@ -114,9 +116,9 @@ class ModelService:
             Dictionary mapping model IDs to LangChain model names
         """
         return {
-            "openai": "openai:gpt-4o",  # Using GPT-4o with 128k token limit instead of gpt-4 (8k limit)
-            "anthropic": "anthropic:claude-3-5-sonnet-20241022", 
-            "kimi": "anthropic:claude-3-5-sonnet-20241022"  # Kimi K2 via Anthropic API format (uses Claude model name)
+            "openai": "gpt-4o",  # Latest GPT-4o model
+            "anthropic": "claude-3-5-sonnet-20241022",  # Latest Claude 3.5 Sonnet
+            "kimi": "moonshot-v1-8k"  # Kimi K2 via Moonshot's Anthropic-compatible endpoint
         }
     
     def get_api_key_env_var(self, model_id: str) -> Optional[str]:
@@ -132,6 +134,6 @@ class ModelService:
         env_vars = {
             "openai": "OPENAI_API_KEY",
             "anthropic": "ANTHROPIC_API_KEY", 
-            "kimi": "KIMI_API_KEY"
+            "kimi": "ANTHROPIC_API_KEY"  # Kimi uses Anthropic-compatible API key
         }
         return env_vars.get(model_id)

@@ -24,11 +24,11 @@ elif model == "kimi":
     # Kimi K2 uses Anthropic API format with custom base URL
     api_keys["ANTHROPIC_API_KEY"] = api_key  # User's Moonshot API key
     # Set custom base URL for Kimi K2 (Moonshot AI)
-    os.environ["ANTHROPIC_BASE_URL"] = "https://api.moonshot.cn/anthropic"
+    os.environ["ANTHROPIC_BASE_URL"] = "https://api.moonshot.ai"
 ```
 
 ### 3. **Base URL Switching**
-- **Kimi K2**: `https://api.moonshot.cn/anthropic`
+- **Kimi K2**: `https://api.moonshot.ai`
 - **Regular Anthropic**: Default Anthropic endpoint
 - **OpenAI**: Default OpenAI endpoint
 
@@ -64,8 +64,8 @@ MODEL_TOKEN_LIMITS = {
 
 ### Backend Processing
 1. User selects "Kimi K2" and enters Moonshot API key
-2. Backend sets `ANTHROPIC_BASE_URL` to Moonshot endpoint
-3. LangChain makes "Anthropic" API calls that get redirected to Kimi K2
+2. Backend sets `MOONSHOT_API_KEY` environment variable
+3. LangChain uses native Moonshot integration to connect to Kimi K2
 4. Responses stream back through the same pipeline
 
 ## Performance Benefits
@@ -93,7 +93,7 @@ The backend automatically manages these environment variables:
 
 ```bash
 # For Kimi K2 requests
-ANTHROPIC_BASE_URL=https://api.moonshot.cn/v1
+ANTHROPIC_BASE_URL=https://api.moonshot.ai
 ANTHROPIC_API_KEY=<user_provided_moonshot_key>
 
 # Automatically cleared for other models

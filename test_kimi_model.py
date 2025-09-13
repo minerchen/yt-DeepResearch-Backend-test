@@ -22,20 +22,22 @@ async def test_kimi_model():
         print("❌ No API key provided. Exiting.")
         return
     
-    # Configure environment variables for Kimi K2
+    # Configure environment variables for Kimi K2 (Anthropic-compatible)
     os.environ["ANTHROPIC_API_KEY"] = test_api_key
-    os.environ["ANTHROPIC_BASE_URL"] = "https://api.moonshot.cn/anthropic"
+    os.environ["ANTHROPIC_BASE_URL"] = "https://api.moonshot.ai/anthropic"
     
     print(f"🔧 Configuration:")
     print(f"   API Key: {test_api_key[:10]}...{test_api_key[-4:]}")
-    print(f"   Base URL: {os.environ['ANTHROPIC_BASE_URL']}")
-    print(f"   Model: anthropic:claude-3-5-sonnet-20241022 (redirected to Kimi K2)")
+    print(f"   Provider: Anthropic-compatible via Moonshot endpoint")
+    print(f"   Base URL: https://api.moonshot.ai/anthropic")
+    print(f"   Model: kimi-k2-instruct-0905 (Latest Kimi K2)")
     print()
     
     try:
         # Initialize the model using our configuration
         model = init_chat_model(
-            model="anthropic:claude-3-5-sonnet-20241022",
+            model="kimi-k2-instruct-0905",
+            model_provider="anthropic",
             api_key=test_api_key
         )
         

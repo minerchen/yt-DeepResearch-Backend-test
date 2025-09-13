@@ -42,7 +42,8 @@ from open_deep_research.state import (
 from open_deep_research.utils import (
     anthropic_websearch_called,
     get_all_tools,
-    get_api_key_for_model,
+    # LEGACY: Commented out for simplified API key handling
+    # get_api_key_for_model,  # No longer needed - using direct user API key
     get_model_token_limit,
     get_notes_from_tool_calls,
     get_today_str,
@@ -54,7 +55,7 @@ from open_deep_research.utils import (
 
 # Initialize a configurable model that we will use throughout the agent
 configurable_model = init_chat_model(
-    configurable_fields=("model", "max_tokens", "api_key"),
+    configurable_fields=("model", "max_tokens", "api_key", "model_provider"),
 )
 
 async def clarify_with_user(state: AgentState, config: RunnableConfig) -> Command[Literal["write_research_brief", "__end__"]]:
@@ -81,8 +82,12 @@ async def clarify_with_user(state: AgentState, config: RunnableConfig) -> Comman
     model_config = {
         "model": configurable.research_model,
         "max_tokens": configurable.research_model_max_tokens,
-        "api_key": get_api_key_for_model(configurable.research_model, config),
+        # SIMPLIFIED: Direct user API key access (no more complex lookup)
+        "api_key": configurable.user_api_key,
+        "model_provider": getattr(configurable, 'research_model_provider', None),
         "tags": ["langsmith:nostream"]
+        # LEGACY: Old complex system (commented out for future env variable use)
+        # "api_key": get_api_key_for_model(configurable.research_model, config),
     }
     
     # Configure model with structured output and retry logic
@@ -134,8 +139,12 @@ async def write_research_brief(state: AgentState, config: RunnableConfig) -> Com
     research_model_config = {
         "model": configurable.research_model,
         "max_tokens": configurable.research_model_max_tokens,
-        "api_key": get_api_key_for_model(configurable.research_model, config),
+        # SIMPLIFIED: Direct user API key access (no more complex lookup)
+        "api_key": configurable.user_api_key,
+        "model_provider": getattr(configurable, 'research_model_provider', None),
         "tags": ["langsmith:nostream"]
+        # LEGACY: Old complex system (commented out for future env variable use)
+        # "api_key": get_api_key_for_model(configurable.research_model, config),
     }
     
     # Configure model for structured research question generation
@@ -194,8 +203,12 @@ async def supervisor(state: SupervisorState, config: RunnableConfig) -> Command[
     research_model_config = {
         "model": configurable.research_model,
         "max_tokens": configurable.research_model_max_tokens,
-        "api_key": get_api_key_for_model(configurable.research_model, config),
+        # SIMPLIFIED: Direct user API key access (no more complex lookup)
+        "api_key": configurable.user_api_key,
+        "model_provider": getattr(configurable, 'research_model_provider', None),
         "tags": ["langsmith:nostream"]
+        # LEGACY: Old complex system (commented out for future env variable use)
+        # "api_key": get_api_key_for_model(configurable.research_model, config),
     }
     
     # Available tools: research delegation, completion signaling, and strategic thinking
@@ -392,8 +405,12 @@ async def researcher(state: ResearcherState, config: RunnableConfig) -> Command[
     research_model_config = {
         "model": configurable.research_model,
         "max_tokens": configurable.research_model_max_tokens,
-        "api_key": get_api_key_for_model(configurable.research_model, config),
+        # SIMPLIFIED: Direct user API key access (no more complex lookup)
+        "api_key": configurable.user_api_key,
+        "model_provider": getattr(configurable, 'research_model_provider', None),
         "tags": ["langsmith:nostream"]
+        # LEGACY: Old complex system (commented out for future env variable use)
+        # "api_key": get_api_key_for_model(configurable.research_model, config),
     }
     
     # Prepare system prompt with MCP context if available
@@ -527,8 +544,12 @@ async def compress_research(state: ResearcherState, config: RunnableConfig):
     synthesizer_model = configurable_model.with_config({
         "model": configurable.compression_model,
         "max_tokens": configurable.compression_model_max_tokens,
-        "api_key": get_api_key_for_model(configurable.compression_model, config),
+        # SIMPLIFIED: Direct user API key access (no more complex lookup)
+        "api_key": configurable.user_api_key,
+        "model_provider": getattr(configurable, 'compression_model_provider', None),
         "tags": ["langsmith:nostream"]
+        # LEGACY: Old complex system (commented out for future env variable use)
+        # "api_key": get_api_key_for_model(configurable.compression_model, config),
     })
     
     # Step 2: Prepare messages for compression
@@ -627,8 +648,12 @@ async def final_report_generation(state: AgentState, config: RunnableConfig):
     writer_model_config = {
         "model": configurable.final_report_model,
         "max_tokens": configurable.final_report_model_max_tokens,
-        "api_key": get_api_key_for_model(configurable.final_report_model, config),
+        # SIMPLIFIED: Direct user API key access (no more complex lookup)
+        "api_key": configurable.user_api_key,
+        "model_provider": getattr(configurable, 'final_report_model_provider', None),
         "tags": ["langsmith:nostream"]
+        # LEGACY: Old complex system (commented out for future env variable use)
+        # "api_key": get_api_key_for_model(configurable.final_report_model, config),
     }
     
     # Step 3: Attempt report generation with token limit retry logic

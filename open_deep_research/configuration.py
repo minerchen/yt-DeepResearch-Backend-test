@@ -39,6 +39,18 @@ class Configuration(BaseModel):
     """Main configuration class for the Deep Research agent."""
     
     # General Configuration
+    # SIMPLIFIED: User-provided API key (replaces complex apiKeys system)
+    user_api_key: str = Field(
+        default="",
+        metadata={
+            "x_oap_ui_config": {
+                "type": "string",
+                "default": "",
+                "description": "User's API key for the selected model provider"
+            }
+        }
+    )
+    
     max_structured_output_retries: int = Field(
         default=3,
         metadata={
@@ -138,6 +150,16 @@ class Configuration(BaseModel):
             }
         }
     )
+    summarization_model_provider: str = Field(
+        default="openai",
+        metadata={
+            "x_oap_ui_config": {
+                "type": "text",
+                "default": "openai",
+                "description": "Model provider for summarization model (openai, anthropic, etc.)"
+            }
+        }
+    )
     max_content_length: int = Field(
         default=50000,
         metadata={
@@ -170,6 +192,16 @@ class Configuration(BaseModel):
             }
         }
     )
+    research_model_provider: str = Field(
+        default="openai",
+        metadata={
+            "x_oap_ui_config": {
+                "type": "text",
+                "default": "openai",
+                "description": "Model provider for research model (openai, anthropic, etc.)"
+            }
+        }
+    )
     compression_model: str = Field(
         default="openai:gpt-4.1",
         metadata={
@@ -190,6 +222,16 @@ class Configuration(BaseModel):
             }
         }
     )
+    compression_model_provider: str = Field(
+        default="openai",
+        metadata={
+            "x_oap_ui_config": {
+                "type": "text",
+                "default": "openai",
+                "description": "Model provider for compression model (openai, anthropic, etc.)"
+            }
+        }
+    )
     final_report_model: str = Field(
         default="openai:gpt-4.1",
         metadata={
@@ -207,6 +249,16 @@ class Configuration(BaseModel):
                 "type": "number",
                 "default": 10000,
                 "description": "Maximum output tokens for final report model"
+            }
+        }
+    )
+    final_report_model_provider: str = Field(
+        default="openai",
+        metadata={
+            "x_oap_ui_config": {
+                "type": "text",
+                "default": "openai",
+                "description": "Model provider for final report model (openai, anthropic, etc.)"
             }
         }
     )

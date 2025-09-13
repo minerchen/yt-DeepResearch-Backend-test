@@ -1,4 +1,23 @@
-"""Utility functions and helpers for the Deep Research agent."""
+"""Utility functions and helpers for the Deep Research agent.
+
+API KEY ARCHITECTURE (Updated):
+===============================
+This system now uses a SIMPLIFIED approach for API key handling:
+
+CURRENT SYSTEM:
+- Users provide API keys directly via the frontend
+- Backend stores the key in configurable.user_api_key 
+- Models access the key directly without complex lookups
+- No environment variable dependencies for user-facing deployment
+
+LEGACY SYSTEM (commented out):
+- Complex get_api_key_for_model() function with environment fallbacks
+- apiKeys dictionary in config with pattern matching
+- Support for both config-based and environment-based keys
+
+The legacy system can be restored for local development if needed.
+See comments around line 896 for restoration instructions.
+"""
 
 import asyncio
 import logging
@@ -893,29 +912,56 @@ def get_config_value(value):
     else:
         return value.value
 
-def get_api_key_for_model(model_name: str, config: RunnableConfig):
-    """Get API key for a specific model from environment or config."""
-    should_get_from_config = os.getenv("GET_API_KEYS_FROM_CONFIG", "false")
-    model_name = model_name.lower()
-    if should_get_from_config.lower() == "true":
-        api_keys = config.get("configurable", {}).get("apiKeys", {})
-        if not api_keys:
-            return None
-        if model_name.startswith("openai:"):
-            return api_keys.get("OPENAI_API_KEY")
-        elif model_name.startswith("anthropic:"):
-            return api_keys.get("ANTHROPIC_API_KEY")
-        elif model_name.startswith("google"):
-            return api_keys.get("GOOGLE_API_KEY")
-        return None
-    else:
-        if model_name.startswith("openai:"): 
-            return os.getenv("OPENAI_API_KEY")
-        elif model_name.startswith("anthropic:"):
-            return os.getenv("ANTHROPIC_API_KEY")
-        elif model_name.startswith("google"):
-            return os.getenv("GOOGLE_API_KEY")
-        return None
+# LEGACY FUNCTION - COMMENTED OUT FOR SIMPLIFIED API KEY HANDLING
+# 
+# This function was part of the old complex API key system that supported both
+# environment variables and config-based API keys. It has been replaced with
+# a simpler direct user API key approach.
+#
+# NEW APPROACH (Current):
+# - Users provide API keys directly in the frontend
+# - Backend passes user's API key directly to model configs via configurable.user_api_key
+# - No complex lookup or environment variable fallbacks needed
+#
+# OLD APPROACH (Legacy - commented out):
+# - Complex apiKeys dictionary in config
+# - Environment variable fallbacks
+# - Model name pattern matching
+# - Required GET_API_KEYS_FROM_CONFIG environment variable
+#
+# To restore the old system for local development with env variables:
+# 1. Uncomment this function
+# 2. Set GET_API_KEYS_FROM_CONFIG=true in your environment
+# 3. Update deep_researcher.py to use get_api_key_for_model() instead of configurable.user_api_key
+# 4. Update deep_research_service.py to use the apiKeys dictionary approach
+#
+# def get_api_key_for_model(model_name: str, config: RunnableConfig):
+#     """Get API key for a specific model from environment or config."""
+#     should_get_from_config = os.getenv("GET_API_KEYS_FROM_CONFIG", "false")
+#     model_name = model_name.lower()
+#     if should_get_from_config.lower() == "true":
+#         api_keys = config.get("configurable", {}).get("apiKeys", {})
+#         if not api_keys:
+#             return None
+#         if model_name.startswith("openai:"):
+#             return api_keys.get("OPENAI_API_KEY")
+#         elif model_name.startswith("anthropic:"):
+#             return api_keys.get("ANTHROPIC_API_KEY")
+#         elif model_name.startswith("google"):
+#             return api_keys.get("GOOGLE_API_KEY")
+#         elif model_name.startswith("moonshot"):
+#             return api_keys.get("ANTHROPIC_API_KEY")  # Moonshot uses Anthropic-compatible API
+#         return None
+#     else:
+#         if model_name.startswith("openai:"): 
+#             return os.getenv("OPENAI_API_KEY")
+#         elif model_name.startswith("anthropic:"):
+#             return os.getenv("ANTHROPIC_API_KEY")
+#         elif model_name.startswith("google"):
+#             return os.getenv("GOOGLE_API_KEY")
+#         elif model_name.startswith("moonshot"):
+#             return os.getenv("ANTHROPIC_API_KEY")  # Moonshot uses Anthropic-compatible API
+#         return None
 
 def get_tavily_api_key(config: RunnableConfig):
     """Get Tavily API key from environment or config."""

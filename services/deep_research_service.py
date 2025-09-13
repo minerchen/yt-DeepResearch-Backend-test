@@ -94,6 +94,17 @@ class DeepResearchService:
                     node_count += 1
                     logger.info(f"Processing chunk {node_count}: {list(chunk.keys())}")
                     
+                    # Yield API call information for transparency
+                    yield StreamingEvent(
+                        type="api_call",
+                        stage=current_stage,
+                        content=f"API Call to {model}: Processing workflow chunk {node_count} with nodes: {', '.join(chunk.keys())}",
+                        timestamp=datetime.utcnow().isoformat(),
+                        research_id=research_id,
+                        model=model,
+                        metadata={"chunk_number": node_count, "nodes": list(chunk.keys())}
+                    )
+                    
                     # Process each chunk and convert to streaming event
                     for node_name, node_data in chunk.items():
                         try:
@@ -164,27 +175,39 @@ class DeepResearchService:
             model_mapping = self.model_service.get_model_provider_mapping()
             langchain_model = model_mapping.get(model, "gpt-4")
             
-            # Create API keys configuration
-            api_keys = {}
+            # For Kimi, use the model from mapping (should be kimi-k2-instruct-0905)
+            # No override needed - let the model mapping handle it
+            
+            # SIMPLIFIED: Direct user API key approach
+            # Store user's API key directly in config for immediate use
+            user_api_key = api_key
+            
+            # Configure environment for different model providers
             if model == "openai":
-                api_keys["OPENAI_API_KEY"] = api_key
                 # Ensure we use default OpenAI base URL
                 os.environ.pop("ANTHROPIC_BASE_URL", None)
             elif model == "anthropic":
-                api_keys["ANTHROPIC_API_KEY"] = api_key
                 # Ensure we use default Anthropic base URL
                 os.environ.pop("ANTHROPIC_BASE_URL", None)
             elif model == "kimi":
-                # Kimi K2 uses Anthropic API format with custom base URL
-                api_keys["ANTHROPIC_API_KEY"] = api_key
-                # Set custom base URL for Kimi K2 (Moonshot AI) - matches your setup guide
-                os.environ["ANTHROPIC_BASE_URL"] = "https://api.moonshot.cn/anthropic"
-                logger.info(f"Configured Kimi K2 with base URL: https://api.moonshot.cn/anthropic")
+                # Kimi K2 uses Anthropic-compatible API via Moonshot endpoint
+                # Set Anthropic base URL to Moonshot AI Anthropic-compatible endpoint
+                os.environ["ANTHROPIC_BASE_URL"] = "https://api.moonshot.ai/anthropic"
+                logger.info(f"Configured Kimi K2-Instruct-0905 with Anthropic-compatible API via Moonshot endpoint")
+            
+            # LEGACY: Old complex API keys system (commented out for future env variable use)
+            # api_keys = {}
+            # if model == "openai":
+            #     api_keys["OPENAI_API_KEY"] = api_key
+            # elif model == "anthropic":
+            #     api_keys["ANTHROPIC_API_KEY"] = api_key
+            # elif model == "kimi":
+            #     api_keys["ANTHROPIC_API_KEY"] = api_key
             
             # For Kimi, we need to specify the model provider explicitly
             model_provider = None
             if model == "kimi":
-                model_provider = "anthropic"  # Kimi uses Anthropic API format
+                model_provider = "anthropic"  # Kimi uses Anthropic-compatible API
             elif model == "openai":
                 model_provider = "openai"
             elif model == "anthropic":
@@ -205,7 +228,10 @@ class DeepResearchService:
                 "search_api": "anthropic",  # Use Anthropic search API
                 "max_research_iterations": 5,
                 "max_researchers": 3,
-                "apiKeys": api_keys
+                # SIMPLIFIED: Direct user API key (no more complex apiKeys dictionary)
+                "user_api_key": user_api_key
+                # LEGACY: Old complex system (commented out for future env variable use)
+                # "apiKeys": api_keys
             }
             
             # Add model provider if specified
@@ -394,7 +420,16 @@ class DeepResearchService:
                 # Handle dict structure for final report
                 if isinstance(node_data, dict) and 'final_report' in node_data:
                     report_content = str(node_data['final_report'])
-                    # Show the full final report content
+                    # Ensure sources are included in the final report
+                    sources = self._extract_sources_from_text(report_content)
+                    if sources:
+                        report_content += f"\n\n## Sources and References\n"
+                        for i, source in enumerate(sources, 1):
+                            if source.startswith('http'):
+                                report_content += f"{i}. {source}\n"
+                            else:
+                                report_content += f"{i}. {source}\n"
+                    # Show the full final report content with sources
                     extracted_content += f"\n\n📄 Final Report: {report_content}"
                 else:
                     # Extract AI messages from final report generation
