@@ -118,7 +118,7 @@ class ModelService:
         return {
             "openai": "gpt-4o",  # Latest GPT-4o model
             "anthropic": "claude-3-5-sonnet-20241022",  # Latest Claude 3.5 Sonnet
-            "kimi": "moonshot-v1-8k"  # Kimi K2 via Moonshot's Anthropic-compatible endpoint
+            "kimi": "moonshot-v1-128k"  # Kimi K2 with 128K token limit via Moonshot's Anthropic-compatible endpoint
         }
     
     def get_api_key_env_var(self, model_id: str) -> Optional[str]:
