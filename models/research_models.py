@@ -84,6 +84,13 @@ class ResearchResponse(BaseModel):
         }
 
 
+class StageTimings(BaseModel):
+    """Detailed timing for each research stage"""
+    clarification: float = Field(default=0.0, description="Time spent on clarification stage")
+    research_brief: float = Field(default=0.0, description="Time spent on research brief generation")
+    research_execution: float = Field(default=0.0, description="Time spent on research execution")
+    final_report: float = Field(default=0.0, description="Time spent on final report generation")
+
 class ModelMetrics(BaseModel):
     """Performance metrics for a specific model"""
     model: str = Field(..., description="Model identifier")
@@ -91,6 +98,9 @@ class ModelMetrics(BaseModel):
     average_duration: float = Field(default=0.0, description="Average request duration in seconds")
     success_rate: float = Field(default=0.0, description="Success rate percentage")
     last_used: Optional[str] = Field(None, description="Last usage timestamp")
+    average_stage_timings: Optional[StageTimings] = Field(None, description="Average timing per stage")
+    average_sources_found: float = Field(default=0.0, description="Average number of sources found")
+    average_word_count: float = Field(default=0.0, description="Average word count of reports")
 
 
 class ModelComparison(BaseModel):
@@ -122,6 +132,26 @@ class ResearchHistory(BaseModel):
             datetime: lambda v: v.isoformat()
         }
 
+
+class ComparisonResult(BaseModel):
+    """Single model result in a comparison session"""
+    model: str = Field(..., description="Model identifier")
+    duration: float = Field(..., description="Total duration in seconds")
+    stage_timings: StageTimings = Field(..., description="Timing breakdown by stage")
+    sources_found: int = Field(default=0, description="Number of sources found")
+    word_count: int = Field(default=0, description="Word count of generated report")
+    success: bool = Field(..., description="Whether the research completed successfully")
+    error: Optional[str] = Field(None, description="Error message if failed")
+    report_content: str = Field(..., description="Generated report content")
+    supervisor_tools_used: List[str] = Field(default_factory=list, description="List of supervisor tools used")
+
+class ComparisonSession(BaseModel):
+    """Complete comparison session with multiple models"""
+    session_id: str = Field(..., description="Unique session identifier")
+    query: str = Field(..., description="Research query used for comparison")
+    timestamp: str = Field(..., description="Session start timestamp")
+    results: List[ComparisonResult] = Field(..., description="Results from each model")
+    user_feedback: Optional[Dict[str, Any]] = Field(None, description="User ratings and feedback")
 
 class AvailableModel(BaseModel):
     """Available AI model information"""

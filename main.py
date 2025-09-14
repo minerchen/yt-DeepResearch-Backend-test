@@ -26,9 +26,19 @@ from models.research_models import (
     ResearchResponse,
     StreamingEvent,
     ModelComparison,
-    ResearchHistory
+    ResearchHistory,
+    ComparisonSession,
+    ComparisonResult,
+    StageTimings
 )
 from utils.metrics import MetricsCollector
+
+
+class MultiModelComparisonRequest(BaseModel):
+    """Request model for multi-model comparison"""
+    query: str = Field(..., description="Research question to test across models", min_length=1)
+    models: List[str] = Field(..., description="List of model IDs to compare", min_items=1)
+    api_keys: Dict[str, str] = Field(..., description="API keys for each model", min_items=1)
 
 # Configure logging with Google Standards
 logging.basicConfig(
@@ -204,6 +214,170 @@ async def delete_research(research_id: str):
     if not success:
         raise HTTPException(status_code=404, detail="Research not found")
     return {"message": "Research deleted successfully"}
+
+@app.post("/research/compare")
+async def run_multi_model_comparison(request: MultiModelComparisonRequest):
+    """
+    Run the same research query across multiple models in parallel
+    and store comprehensive comparison metrics
+    """
+    try:
+        # Validate models
+        available_models = await model_service.get_available_models()
+        available_model_ids = [model.id for model in available_models["models"]]
+        
+        for model in request.models:
+            if model not in available_model_ids:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Unsupported model: {model}. Available: {available_model_ids}"
+                )
+            if model not in request.api_keys or not request.api_keys[model].strip():
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Missing API key for model: {model}"
+                )
+        
+        session_id = f"compare_{int(time.time())}"
+        comparison_results = []
+        
+        # Run research for each model in parallel
+        async def run_model_research(model: str) -> ComparisonResult:
+            start_time = time.time()
+            stage_start_time = start_time
+            current_stage = "clarification"
+            
+            stage_timings = StageTimings()
+            sources_found = 0
+            report_content = ""
+            supervisor_tools = []
+            error = None
+            
+            try:
+                # Stream the research process and collect metrics
+                async for event in research_service.stream_research(
+                    query=request.query,
+                    model=model,
+                    api_key=request.api_keys[model],
+                    research_id=f"{session_id}_{model}"
+                ):
+                    # Track stage transitions
+                    if event.stage and event.stage != current_stage:
+                        # Complete previous stage
+                        stage_duration = time.time() - stage_start_time
+                        if current_stage == "clarification":
+                            stage_timings.clarification = stage_duration
+                        elif current_stage == "research_brief":
+                            stage_timings.research_brief = stage_duration
+                        elif current_stage == "research_execution":
+                            stage_timings.research_execution = stage_duration
+                        elif current_stage == "final_report":
+                            stage_timings.final_report = stage_duration
+                        
+                        # Start new stage
+                        current_stage = event.stage
+                        stage_start_time = time.time()
+                    
+                    # Track sources found
+                    if event.type == "sources_found" and event.metadata:
+                        sources = event.metadata.get("sources", [])
+                        if isinstance(sources, list):
+                            sources_found += len(sources)
+                    
+                    # Track supervisor tools
+                    if event.type == "tool_usage" and event.metadata:
+                        tool_name = event.metadata.get("tool_name")
+                        if tool_name and tool_name not in supervisor_tools:
+                            supervisor_tools.append(tool_name)
+                    
+                    # Collect content
+                    if event.content:
+                        report_content += event.content + "\n"
+                
+                # Complete final stage
+                final_stage_duration = time.time() - stage_start_time
+                if current_stage == "clarification":
+                    stage_timings.clarification = final_stage_duration
+                elif current_stage == "research_brief":
+                    stage_timings.research_brief = final_stage_duration
+                elif current_stage == "research_execution":
+                    stage_timings.research_execution = final_stage_duration
+                elif current_stage == "final_report":
+                    stage_timings.final_report = final_stage_duration
+                
+                success = True
+                
+            except Exception as e:
+                logger.error(f"Error in model {model} research: {str(e)}")
+                error = str(e)
+                success = False
+                
+                # Complete current stage with error
+                final_stage_duration = time.time() - stage_start_time
+                if current_stage == "clarification":
+                    stage_timings.clarification = final_stage_duration
+                elif current_stage == "research_brief":
+                    stage_timings.research_brief = final_stage_duration
+                elif current_stage == "research_execution":
+                    stage_timings.research_execution = final_stage_duration
+                elif current_stage == "final_report":
+                    stage_timings.final_report = final_stage_duration
+            
+            total_duration = time.time() - start_time
+            word_count = len(report_content.split()) if report_content else 0
+            
+            return ComparisonResult(
+                model=model,
+                duration=total_duration,
+                stage_timings=stage_timings,
+                sources_found=sources_found,
+                word_count=word_count,
+                success=success,
+                error=error,
+                report_content=report_content,
+                supervisor_tools_used=supervisor_tools
+            )
+        
+        # Execute all model research in parallel
+        tasks = [run_model_research(model) for model in request.models]
+        comparison_results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Filter out exceptions and create proper results
+        valid_results = []
+        for i, result in enumerate(comparison_results):
+            if isinstance(result, Exception):
+                logger.error(f"Exception in model {request.models[i]}: {str(result)}")
+                # Create error result
+                valid_results.append(ComparisonResult(
+                    model=request.models[i],
+                    duration=0.0,
+                    stage_timings=StageTimings(),
+                    sources_found=0,
+                    word_count=0,
+                    success=False,
+                    error=str(result),
+                    report_content="",
+                    supervisor_tools_used=[]
+                ))
+            else:
+                valid_results.append(result)
+        
+        # Create comparison session
+        comparison_session = ComparisonSession(
+            session_id=session_id,
+            query=request.query,
+            timestamp=datetime.utcnow().isoformat(),
+            results=valid_results
+        )
+        
+        # Store the session
+        await metrics_collector.store_comparison_session(comparison_session)
+        
+        return comparison_session
+        
+    except Exception as e:
+        logger.error(f"Error in multi-model comparison: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/research/test")
 async def test_research_endpoint(request: ResearchRequest):

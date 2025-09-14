@@ -14,8 +14,12 @@ import asyncio
 from models.research_models import (
     ModelMetrics, 
     ModelComparison, 
-    ResearchHistory
+    ResearchHistory,
+    ComparisonSession,
+    ComparisonResult,
+    StageTimings
 )
+from services.supabase_service import SupabaseService
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +28,8 @@ class MetricsCollector:
     """Service for collecting and analyzing research performance metrics"""
     
     def __init__(self):
-        """Initialize metrics collector with in-memory storage"""
+        """Initialize metrics collector with Supabase and fallback in-memory storage"""
+        self.supabase_service = SupabaseService()
         self.research_history: List[Dict] = []
         self.model_metrics: Dict[str, Dict] = {
             "openai": {"requests": [], "total_duration": 0, "success_count": 0},
@@ -124,14 +129,76 @@ class MetricsCollector:
             logger.error(f"Error getting research history: {str(e)}")
             return {"history": [], "total_count": 0, "error": str(e)}
     
+    async def store_comparison_session(self, session: ComparisonSession) -> bool:
+        """
+        Store a complete comparison session
+        
+        Args:
+            session: ComparisonSession with all model results
+            
+        Returns:
+            bool: Success status
+        """
+        try:
+            # Try Supabase first
+            if self.supabase_service.is_available():
+                success = await self.supabase_service.store_comparison_session(session)
+                if success:
+                    logger.info(f"Stored comparison session {session.session_id} in Supabase")
+                    return True
+            
+            # Fallback to in-memory storage
+            session_dict = session.dict()
+            self.research_history.append({
+                "type": "comparison_session",
+                "data": session_dict,
+                "timestamp": session.timestamp
+            })
+            
+            # Update model metrics from comparison results
+            for result in session.results:
+                if result.model in self.model_metrics:
+                    metrics = self.model_metrics[result.model]
+                    metrics["requests"].append({
+                        "research_id": session.session_id,
+                        "duration": result.duration,
+                        "success": result.success,
+                        "timestamp": session.timestamp,
+                        "stage_timings": result.stage_timings.dict(),
+                        "sources_found": result.sources_found,
+                        "word_count": result.word_count
+                    })
+                    metrics["total_duration"] += result.duration
+                    if result.success:
+                        metrics["success_count"] += 1
+            
+            logger.info(f"Stored comparison session {session.session_id} in memory")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error storing comparison session: {str(e)}")
+            return False
+
     async def get_model_comparison(self) -> ModelComparison:
         """
         Get performance comparison between different models
         
         Returns:
-            ModelComparison with metrics for each model
+            ModelComparison with comprehensive metrics for each model
         """
         try:
+            # Try to get metrics from Supabase first
+            if self.supabase_service.is_available():
+                supabase_metrics = await self.supabase_service.get_model_metrics()
+                if supabase_metrics:
+                    total_requests = sum(m.total_requests for m in supabase_metrics)
+                    return ModelComparison(
+                        models=supabase_metrics,
+                        total_requests=total_requests,
+                        generated_at=datetime.utcnow().isoformat()
+                    )
+            
+            # Fallback to in-memory metrics
             model_metrics_list = []
             total_requests = 0
             
@@ -149,17 +216,48 @@ class MetricsCollector:
                     
                     # Get last used timestamp
                     last_used = max(req["timestamp"] for req in requests) if requests else None
+                    
+                    # Calculate average stage timings if available
+                    avg_stage_timings = None
+                    sources_total = 0
+                    words_total = 0
+                    
+                    for req in requests:
+                        if "stage_timings" in req:
+                            if not avg_stage_timings:
+                                avg_stage_timings = StageTimings()
+                            timings = req["stage_timings"]
+                            avg_stage_timings.clarification += timings.get("clarification", 0)
+                            avg_stage_timings.research_brief += timings.get("research_brief", 0)
+                            avg_stage_timings.research_execution += timings.get("research_execution", 0)
+                            avg_stage_timings.final_report += timings.get("final_report", 0)
+                        
+                        sources_total += req.get("sources_found", 0)
+                        words_total += req.get("word_count", 0)
+                    
+                    # Average the stage timings
+                    if avg_stage_timings:
+                        avg_stage_timings.clarification /= request_count
+                        avg_stage_timings.research_brief /= request_count
+                        avg_stage_timings.research_execution /= request_count
+                        avg_stage_timings.final_report /= request_count
                 else:
                     avg_duration = 0.0
                     success_rate = 0.0
                     last_used = None
+                    avg_stage_timings = None
+                    sources_total = 0
+                    words_total = 0
                 
                 model_metrics_list.append(ModelMetrics(
                     model=model_id,
                     total_requests=request_count,
                     average_duration=round(avg_duration, 2),
                     success_rate=round(success_rate, 2),
-                    last_used=last_used
+                    last_used=last_used,
+                    average_stage_timings=avg_stage_timings,
+                    average_sources_found=round(sources_total / max(request_count, 1), 1),
+                    average_word_count=round(words_total / max(request_count, 1), 0)
                 ))
             
             return ModelComparison(
