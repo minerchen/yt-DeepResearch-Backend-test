@@ -805,26 +805,19 @@ def _check_gemini_token_limit(exception: Exception, error_str: str) -> bool:
 
 # NOTE: This may be out of date or not applicable to your models. Please update this as needed.
 MODEL_TOKEN_LIMITS = {
-    "openai:gpt-4": 8192,  # Classic GPT-4 model
-    "openai:gpt-4-turbo": 128000,
-    "openai:gpt-4.1-mini": 1047576,
-    "openai:gpt-4.1-nano": 1047576,
-    "openai:gpt-4.1": 1047576,
-    "openai:gpt-4o-mini": 128000,
+    # OpenAI
+    "openai:gpt-5": 200000,  # adjust to your org's quota if different
     "openai:gpt-4o": 128000,
-    "openai:o4-mini": 200000,
-    "openai:o3-mini": 200000,
-    "openai:o3": 200000,
-    "openai:o3-pro": 200000,
-    "openai:o1": 200000,
-    "openai:o1-pro": 200000,
-    "anthropic:claude-opus-4": 200000,
-    "anthropic:claude-sonnet-4": 200000,
+    "openai:gpt-4": 8192,
+    # Anthropic
+    "anthropic:claude-4": 200000,
     "anthropic:claude-3-7-sonnet": 200000,
     "anthropic:claude-3-5-sonnet": 200000,
-    "anthropic:claude-3-5-haiku": 200000,
-    "anthropic:kimi-k2-0905": 128000,  # Latest Kimi K2 0905 model limits
-    "moonshot:moonshot-v1-128k": 128000,  # Legacy Kimi K2 model limits
+    # Moonshot / Kimi K2
+    "anthropic:kimi-k2-0905": 128000,
+    "moonshot:kimi-k2-0905-preview": 128000,
+    "moonshot:moonshot-v1-128k": 128000,
+    # Others (unchanged)
     "google:gemini-1.5-pro": 2097152,
     "google:gemini-1.5-flash": 1048576,
     "google:gemini-pro": 32768,

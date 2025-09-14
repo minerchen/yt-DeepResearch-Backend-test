@@ -116,9 +116,14 @@ class ModelService:
             Dictionary mapping model IDs to LangChain model names
         """
         return {
-            "openai": "gpt-4o",  # Latest GPT-4o model
-            "anthropic": "claude-3-5-sonnet-20241022",  # Latest Claude 3.5 Sonnet
-            "kimi": "moonshot-v1-128k"  # Kimi K2 with 128K token limit via Moonshot's Anthropic-compatible endpoint
+            # OpenAI
+            # Update to GPT-5 family; replace with the exact deployment/model ID you have access to.
+            "openai": "gpt-5",
+            # Anthropic
+            # Update to Claude 4 (or exact variant you prefer)
+            "anthropic": "claude-4",
+            # Moonshot Kimi K2 0905 preview via Anthropic-compatible endpoint
+            "kimi": "kimi-k2-0905-preview"
         }
     
     def get_api_key_env_var(self, model_id: str) -> Optional[str]:
