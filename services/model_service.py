@@ -23,9 +23,9 @@ class ModelService:
         return {
             "openai": AvailableModel(
                 id="openai",
-                name="OpenAI GPT-4o (Latest)",
+                name="OpenAI GPT-5 (Latest)",
                 provider="OpenAI",
-                description="Latest GPT-4o model with excellent reasoning and research capabilities (128k tokens)",
+                description="Latest GPT-5 model with excellent reasoning and research capabilities",
                 capabilities=[
                     "web_search",
                     "document_analysis", 
@@ -37,9 +37,9 @@ class ModelService:
             ),
             "anthropic": AvailableModel(
                 id="anthropic",
-                name="Claude 3.5 Sonnet (Latest)",
+                name="Claude 4 (Latest)",
                 provider="Anthropic",
-                description="Latest Claude 3.5 Sonnet with enhanced analytical and research capabilities (200k tokens)",
+                description="Latest Claude 4 with enhanced analytical and research capabilities (200k tokens)",
                 capabilities=[
                     "web_search",
                     "document_analysis",
@@ -51,9 +51,9 @@ class ModelService:
             ),
             "kimi": AvailableModel(
                 id="kimi",
-                name="Kimi K2-Instruct-0905 (Latest)",
+                name="Kimi K2 0905 Preview (Latest)",
                 provider="Moonshot AI",
-                description="Latest Kimi K2-Instruct-0905: state-of-the-art MoE model with 32B activated parameters, enhanced agentic coding intelligence",
+                description="Kimi K2 0905 preview via Moonshot Anthropic-compatible endpoint",
                 capabilities=[
                     "web_search",
                     "document_analysis",

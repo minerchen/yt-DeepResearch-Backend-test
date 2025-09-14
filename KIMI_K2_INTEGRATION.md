@@ -83,7 +83,7 @@ Based on the [setup guide benchmarks](https://github.com/ShenSeanChen/yt-kimi-k2
 ## API Key Setup
 
 Users need a **Moonshot AI API key** from:
-1. Visit [Moonshot AI Platform](https://platform.moonshot.cn/)
+1. Visit [Moonshot AI Platform](https://platform.moonshot.ai/)
 2. Create account and get API key
 3. Format: `sk-xxx...` (similar to OpenAI format)
 4. Enter this key in the "API Key" field when selecting "Kimi K2"
@@ -129,7 +129,7 @@ This script will:
 
 To test Kimi K2 integration:
 
-1. **Get Moonshot API Key**: Register at platform.moonshot.cn
+1. **Get Moonshot API Key**: Register at platform.moonshot.ai
 2. **Run Model Test**: Use `python test_kimi_model.py` to verify version
 3. **Select Kimi K2**: Choose from frontend dropdown
 4. **Enter API Key**: Your Moonshot AI key

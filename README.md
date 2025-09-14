@@ -84,7 +84,7 @@ ANTHROPIC_API_KEY=your_anthropic_key
 
 # For Kimi K2 (uses Anthropic API format)
 ANTHROPIC_API_KEY=your_kimi_key  # When using Kimi
-ANTHROPIC_BASE_URL=https://api.moonshot.cn/anthropic  # Auto-configured for Kimi
+ANTHROPIC_BASE_URL=https://api.moonshot.ai/anthropic  # Auto-configured for Kimi
 ```
 
 ## 📡 API Endpoints
@@ -218,7 +218,7 @@ python test_kimi_model.py
    - Solution: Upgraded to GPT-4o (128k context) for OpenAI
 
 3. **Kimi K2 Connection Issues**
-   - Check base URL: `https://api.moonshot.cn/anthropic`
+   - Check base URL: `https://api.moonshot.ai/anthropic`
    - Verify API key format matches Anthropic
 
 4. **Streaming Interruptions**
