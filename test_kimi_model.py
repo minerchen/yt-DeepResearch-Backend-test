@@ -77,7 +77,7 @@ async def test_kimi_model():
         print("   1. Verify your Moonshot AI API key is correct")
         print("   2. Check if the base URL is accessible from your location")
         print("   3. Ensure the model name 'kimi-k2-0905' is correct")
-        print("   4. Try with a different model name like 'moonshot-v1-128k'")
+        print("   4. Try with a different model name like 'kimi-k2-0905-preview'")
 
 if __name__ == "__main__":
     print("🚀 Kimi K2 Model Verification Tool")

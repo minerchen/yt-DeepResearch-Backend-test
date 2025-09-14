@@ -49,8 +49,9 @@ def get_model_provider_mapping(self):
 ```python
 # open_deep_research/utils.py
 MODEL_TOKEN_LIMITS = {
-    "anthropic:kimi-k2-0905": 128000,  # Latest Kimi K2 0905 model limits
-    "moonshot:moonshot-v1-128k": 128000,  # Legacy Kimi K2 model limits
+    "moonshot:kimi-k2-0905-preview": 128000,  # Kimi K2 0905 preview (current)
+    "anthropic:kimi-k2-0905": 128000,        # Kimi K2 0905 alias via Anthropic-style prefix
+    "moonshot:moonshot-v1-128k": 128000,     # Legacy Kimi K2 model
     # ... other models
 }
 ```
