@@ -65,15 +65,15 @@ class DeepResearchService:
         workflow_start_time = time.time()
         
         try:
-            # Configure the research workflow
-            config = await self._create_research_config(model, api_key)
+            # Configure the research workflow and capture resolved model name
+            config, resolved_models = await self._create_research_config(model, api_key)
             
             # Create initial state
             initial_state = AgentInputState(
                 messages=[HumanMessage(content=query)]
             )
             
-            # Yield initial event
+            # Yield initial event (include resolved model for transparency)
             yield StreamingEvent(
                 type="stage_start",
                 stage=ResearchStage.INITIALIZATION,
@@ -81,7 +81,22 @@ class DeepResearchService:
                 timestamp=datetime.utcnow().isoformat(),
                 research_id=research_id,
                 model=model,
-                metadata={"query": query, "model_config": model, "start_time": workflow_start_time}
+                metadata={
+                    "query": query,
+                    "model_config": model,
+                    "resolved_model": resolved_models.get("research_model"),
+                    "provider": resolved_models.get("provider"),
+                    "start_time": workflow_start_time,
+                }
+            )
+            # Also emit an API log event showing exact model resolved
+            yield StreamingEvent(
+                type="api_call",
+                stage=ResearchStage.INITIALIZATION,
+                content=f"Using resolved model: {resolved_models.get('research_model')} (provider: {resolved_models.get('provider')})",
+                timestamp=datetime.utcnow().isoformat(),
+                research_id=research_id,
+                model=model,
             )
             
             # Stream the research workflow
@@ -194,7 +209,7 @@ class DeepResearchService:
                 error=str(e)
             )
     
-    async def _create_research_config(self, model: str, api_key: str) -> RunnableConfig:
+    async def _create_research_config(self, model: str, api_key: str) -> tuple[RunnableConfig, dict]:
         """
         Create LangChain configuration for the research workflow
         
@@ -287,7 +302,11 @@ class DeepResearchService:
                 }
             )
             
-            return config
+            # Return config plus resolved model/provider for transparency
+            return config, {
+                "research_model": langchain_model,
+                "provider": model_provider or model,
+            }
             
         except Exception as e:
             logger.error(f"Error creating research config: {str(e)}")
