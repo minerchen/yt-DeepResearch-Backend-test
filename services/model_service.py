@@ -37,9 +37,9 @@ class ModelService:
             ),
             "anthropic": AvailableModel(
                 id="anthropic",
-                name="Claude 4 (Latest)",
+                name="Claude 4 Sonnet (Latest)",
                 provider="Anthropic",
-                description="Latest Claude 4 with enhanced analytical and research capabilities (200k tokens)",
+                description="Claude 4 Sonnet - latest model with enhanced analytical and research capabilities (200k tokens)",
                 capabilities=[
                     "web_search",
                     "document_analysis",
@@ -120,8 +120,8 @@ class ModelService:
             # Update to GPT-5 family; replace with the exact deployment/model ID you have access to.
             "openai": "gpt-5",
             # Anthropic
-            # Update to Claude 4 (or exact variant you prefer)
-            "anthropic": "claude-4",
+            # Claude 3.5 Sonnet - current stable model
+            "anthropic": "claude-sonnet-4-20250514",
             # Moonshot Kimi K2 0905 preview via Anthropic-compatible endpoint
             "kimi": "kimi-k2-0905-preview"
         }

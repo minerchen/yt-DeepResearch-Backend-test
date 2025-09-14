@@ -809,8 +809,8 @@ MODEL_TOKEN_LIMITS = {
     "openai:gpt-5": 200000,  # adjust to your org's quota if different
     "openai:gpt-4o": 128000,
     "openai:gpt-4": 8192,
-    # Anthropic
-    "anthropic:claude-4": 200000,
+    # Anthropic Claude 4 Sonnet
+    "anthropic:claude-sonnet-4-20250514": 200000,
     "anthropic:claude-3-7-sonnet": 200000,
     "anthropic:claude-3-5-sonnet": 200000,
     # Moonshot / Kimi K2
