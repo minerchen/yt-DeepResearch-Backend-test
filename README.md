@@ -39,6 +39,14 @@ A powerful FastAPI backend that provides intelligent deep research capabilities 
 
 2. **Install dependencies**
    ```bash
+   # Create a virtual environment (you can name it .venv or venv)
+   python3 -m venv venv
+
+   # Activate the virtual environment
+   source venv/bin/activate   # On macOS/Linux
+   # .\venv\Scripts\activate  # On Windows (PowerShell)
+
+   # Install dependencies
    pip install -r requirements.txt
    ```
 
