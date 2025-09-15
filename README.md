@@ -2,6 +2,16 @@
 
 A powerful FastAPI backend that provides intelligent deep research capabilities using multiple AI models (OpenAI, Anthropic, Kimi K2). Built with LangGraph for complex research workflows and designed for deployment on GCP Cloud Run.
 
+📹 Full YouTube Guide: [Youtube link](https://youtu.be/NaTYSozASMg)
+
+🚀 X Post: [X link](https://x.com/ShenSeanChen/status/1947796273899139530)
+
+💻 Launch Full Stack Product: [Github Repo](https://github.com/ShenSeanChen/launch-mvp-stripe-nextjs-supabase)
+
+☕️ Buy me a coffee: [Cafe Latte](https://buy.stripe.com/5kA176bA895ggog4gh)
+
+🤖️ Discord: [Invite link](https://discord.com/invite/TKKPzZheua)
+
 ## ✨ Features
 
 - **Multi-Model Support**: OpenAI GPT-4o, Anthropic Claude, and Kimi K2 0905
