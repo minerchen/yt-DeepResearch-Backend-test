@@ -157,16 +157,18 @@ docker run -p 8080:8080 deep-research-backend
 # Build and push to Google Container Registry
 gcloud builds submit --tag gcr.io/YOUR_PROJECT_ID/deep-research-backend
 
-# Deploy to Cloud Run
+# Deploy to Cloud Run - BEST PRACTICE: Optimized for long-running research
 gcloud run deploy deep-research-backend \
   --image gcr.io/YOUR_PROJECT_ID/deep-research-backend \
   --platform managed \
   --region europe-west1 \
   --allow-unauthenticated \
-  --memory 2Gi \
-  --cpu 1 \
-  --timeout 300s \
-  --max-instances 10
+  --memory 4Gi \
+  --cpu 2 \
+  --timeout 3600s \
+  --max-instances 5 \
+  --min-instances 1 \
+  --concurrency 10
 ```
 
 ### Environment Variables in Cloud Run

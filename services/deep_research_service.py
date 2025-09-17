@@ -61,8 +61,14 @@ class DeepResearchService:
             StreamingEvent: Real-time updates about the research progress
         """
         import time
+        import asyncio
         current_stage = ResearchStage.INITIALIZATION
         workflow_start_time = time.time()
+        last_heartbeat = time.time()
+        
+        # BEST PRACTICE: Set reasonable timeout limits
+        RESEARCH_TIMEOUT = 900  # 15 minutes - reasonable for complex research
+        HEARTBEAT_INTERVAL = 25  # Send heartbeat every 25 seconds to keep connection alive
         
         try:
             # Configure the research workflow and capture resolved model name
@@ -99,25 +105,28 @@ class DeepResearchService:
                 model=model,
             )
             
-            # Stream the research workflow
+            # Stream the research workflow with timeout protection
             node_count = 0
             chunk_start_time = time.time()
             
             try:
-                async for chunk in deep_researcher.astream(
-                    initial_state,
-                    config=config,
-                    stream_mode="updates"
-                ):
+                # BEST PRACTICE: Wrap the entire research process in timeout
+                async with asyncio.timeout(RESEARCH_TIMEOUT):
+                    async for chunk in deep_researcher.astream(
+                        initial_state,
+                        config=config,
+                        stream_mode="updates"
+                    ):
                     node_count += 1
                     chunk_duration = time.time() - chunk_start_time
                     logger.info(f"Processing chunk {node_count}: {list(chunk.keys())} (took {chunk_duration:.2f}s)")
                     
-                    # Yield API call information for transparency with timing
+                    # BEST PRACTICE: Enhanced monitoring with performance metrics
+                    total_elapsed = time.time() - workflow_start_time
                     yield StreamingEvent(
                         type="api_call",
                         stage=current_stage,
-                        content=f"API Call to {model}: Processing workflow chunk {node_count} with nodes: {', '.join(chunk.keys())} (⏱️ {chunk_duration:.1f}s)",
+                        content=f"📊 Processing chunk {node_count}: {', '.join(chunk.keys())} (⏱️ {chunk_duration:.1f}s, total: {total_elapsed:.1f}s)",
                         timestamp=datetime.utcnow().isoformat(),
                         research_id=research_id,
                         model=model,
@@ -125,12 +134,35 @@ class DeepResearchService:
                             "chunk_number": node_count, 
                             "nodes": list(chunk.keys()),
                             "chunk_duration": chunk_duration,
-                            "total_elapsed": time.time() - workflow_start_time
+                            "total_elapsed": total_elapsed,
+                            "performance": {
+                                "chunks_per_minute": (node_count / total_elapsed) * 60 if total_elapsed > 0 else 0,
+                                "avg_chunk_duration": total_elapsed / node_count if node_count > 0 else 0,
+                                "timeout_risk": "high" if total_elapsed > RESEARCH_TIMEOUT * 0.8 else "low"
+                            }
                         }
                     )
                     
                     # Reset timer for next chunk
                     chunk_start_time = time.time()
+                    
+                    # BEST PRACTICE: Send heartbeat to keep connection alive during long operations
+                    current_time = time.time()
+                    if current_time - last_heartbeat > HEARTBEAT_INTERVAL:
+                        yield StreamingEvent(
+                            type="heartbeat",
+                            stage=current_stage,
+                            content=f"🔄 Research in progress... (elapsed: {current_time - workflow_start_time:.0f}s)",
+                            timestamp=datetime.utcnow().isoformat(),
+                            research_id=research_id,
+                            model=model,
+                            metadata={
+                                "elapsed_time": current_time - workflow_start_time,
+                                "chunks_processed": node_count,
+                                "heartbeat": True
+                            }
+                        )
+                        last_heartbeat = current_time
                     
                     # Process each chunk and convert to streaming event
                     for node_name, node_data in chunk.items():
@@ -181,7 +213,23 @@ class DeepResearchService:
                             # Continue processing other nodes
                             continue
                             
-                logger.info(f"Completed streaming workflow with {node_count} chunks")
+                    logger.info(f"Completed streaming workflow with {node_count} chunks")
+            except asyncio.TimeoutError:
+                # BEST PRACTICE: Graceful timeout handling with partial results
+                logger.warning(f"Research timed out after {RESEARCH_TIMEOUT}s, providing partial results")
+                yield StreamingEvent(
+                    type="timeout_warning",
+                    stage=current_stage,
+                    content=f"⏰ Research timed out after {RESEARCH_TIMEOUT//60} minutes. Providing partial results based on {node_count} completed research steps.",
+                    timestamp=datetime.utcnow().isoformat(),
+                    research_id=research_id,
+                    model=model,
+                    metadata={
+                        "timeout_duration": RESEARCH_TIMEOUT,
+                        "chunks_completed": node_count,
+                        "elapsed_time": time.time() - workflow_start_time
+                    }
+                )
             except Exception as e:
                 logger.error(f"Error in streaming workflow: {str(e)}")
                 raise
@@ -263,8 +311,8 @@ class DeepResearchService:
             elif model == "anthropic":
                 model_provider = "anthropic"
             
-            # Create configuration - use user's chosen model for ALL model operations
-            # OPTIMIZED: Reduce iterations and researchers to speed up process
+            # BEST PRACTICE: Balanced configuration for production use
+            # Optimized for reliability, speed, and cost-effectiveness
             config_dict = {
                 "research_model": langchain_model,
                 "research_model_max_tokens": 4000,
@@ -274,18 +322,17 @@ class DeepResearchService:
                 "compression_model_max_tokens": 4000,
                 "summarization_model": langchain_model,  # Use same model for summarization
                 "summarization_model_max_tokens": 4000,
-                "allow_clarification": False,
-                "max_structured_output_retries": 2,  # Reduced from 3 to 2
+                "allow_clarification": False,  # Skip clarification for faster results
+                "max_structured_output_retries": 2,  # Reasonable retry limit
                 "search_api": "anthropic",  # Use Anthropic search API
-                # CRITICAL FIX: These are the actual controlling parameters
-                "max_researcher_iterations": 2,  # Reduced from 6 to 2 (supervisor loop limit)
-                "max_react_tool_calls": 5,  # Reduced from 10 to 5 (individual researcher limit)
-                "max_research_iterations": 3,  # This was wrong parameter name
-                "max_researchers": 2,  # This was wrong parameter name
-                # SIMPLIFIED: Direct user API key (no more complex apiKeys dictionary)
+                
+                # BEST PRACTICE: Conservative limits to prevent timeouts
+                "max_researcher_iterations": 1,  # Single iteration to stay under timeout
+                "max_react_tool_calls": 3,      # Focused research with 3 searches max
+                "max_concurrent_research_units": 2,  # Limited parallelism for stability
+                
+                # API key configuration
                 "user_api_key": user_api_key
-                # LEGACY: Old complex system (commented out for future env variable use)
-                # "apiKeys": api_keys
             }
             
             # Add model provider if specified
