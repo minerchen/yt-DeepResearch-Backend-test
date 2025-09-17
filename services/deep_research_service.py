@@ -110,13 +110,12 @@ class DeepResearchService:
             chunk_start_time = time.time()
             
             try:
-                # BEST PRACTICE: Wrap the entire research process in timeout
-                async with asyncio.timeout(RESEARCH_TIMEOUT):
-                    async for chunk in deep_researcher.astream(
-                        initial_state,
-                        config=config,
-                        stream_mode="updates"
-                    ):
+                # BEST PRACTICE: Track time manually for timeout handling
+                async for chunk in deep_researcher.astream(
+                    initial_state,
+                    config=config,
+                    stream_mode="updates"
+                ):
                     node_count += 1
                     chunk_duration = time.time() - chunk_start_time
                     logger.info(f"Processing chunk {node_count}: {list(chunk.keys())} (took {chunk_duration:.2f}s)")
@@ -163,6 +162,24 @@ class DeepResearchService:
                             }
                         )
                         last_heartbeat = current_time
+                    
+                    # BEST PRACTICE: Check for manual timeout
+                    if current_time - workflow_start_time > RESEARCH_TIMEOUT:
+                        logger.warning(f"Research timed out after {RESEARCH_TIMEOUT}s, stopping gracefully")
+                        yield StreamingEvent(
+                            type="timeout_warning",
+                            stage=current_stage,
+                            content=f"⏰ Research timed out after {RESEARCH_TIMEOUT//60} minutes. Providing partial results based on {node_count} completed research steps.",
+                            timestamp=datetime.utcnow().isoformat(),
+                            research_id=research_id,
+                            model=model,
+                            metadata={
+                                "timeout_duration": RESEARCH_TIMEOUT,
+                                "chunks_completed": node_count,
+                                "elapsed_time": current_time - workflow_start_time
+                            }
+                        )
+                        break
                     
                     # Process each chunk and convert to streaming event
                     for node_name, node_data in chunk.items():
@@ -213,23 +230,7 @@ class DeepResearchService:
                             # Continue processing other nodes
                             continue
                             
-                    logger.info(f"Completed streaming workflow with {node_count} chunks")
-            except asyncio.TimeoutError:
-                # BEST PRACTICE: Graceful timeout handling with partial results
-                logger.warning(f"Research timed out after {RESEARCH_TIMEOUT}s, providing partial results")
-                yield StreamingEvent(
-                    type="timeout_warning",
-                    stage=current_stage,
-                    content=f"⏰ Research timed out after {RESEARCH_TIMEOUT//60} minutes. Providing partial results based on {node_count} completed research steps.",
-                    timestamp=datetime.utcnow().isoformat(),
-                    research_id=research_id,
-                    model=model,
-                    metadata={
-                        "timeout_duration": RESEARCH_TIMEOUT,
-                        "chunks_completed": node_count,
-                        "elapsed_time": time.time() - workflow_start_time
-                    }
-                )
+                logger.info(f"Completed streaming workflow with {node_count} chunks")
             except Exception as e:
                 logger.error(f"Error in streaming workflow: {str(e)}")
                 raise
