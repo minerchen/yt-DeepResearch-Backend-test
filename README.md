@@ -4,7 +4,7 @@ A powerful FastAPI backend that provides intelligent deep research capabilities 
 
 📹 Full YouTube Guide: [Youtube link](https://www.youtube.com/watch?v=dw9Vkig47S0&list=PLE9hy4A7ZTmpGq7GHf5tgGFWh2277AeDR&index=29)
 
-🚀 X Post: [X link](https://x.com/ShenSeanChen/status/1947796273899139530)
+🚀 X Post: [X link](https://x.com/ShenSeanChen/status/1969013359010873513)
 
 💻 Launch Full Stack Product: [Github Repo](https://github.com/ShenSeanChen/launch-mvp-stripe-nextjs-supabase)
 
